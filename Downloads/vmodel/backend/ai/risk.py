@@ -71,12 +71,11 @@ def ai_review(patterns, provider="llama", model=None, online=False):
         return results
 
     model = model or status.offline_model or "gemma2:2b"
-
-    # Fast-track safe categories without LLM
     results: list[_Result] = []
     to_classify: list[_Result] = []
     for p in patterns:
-        if p.category in SAFE_CATEGORIES and p.risk == "low":
+        # Fast-track: obviously safe categories don't need LLM
+        if p.category in SAFE_CATEGORIES:
             results.append(_Result(
                 p.src, p.dst, p.category, p.total_count,
                 "low", f"Auto-approved: {p.category}",
