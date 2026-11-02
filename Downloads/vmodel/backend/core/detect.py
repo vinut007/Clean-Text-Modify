@@ -76,9 +76,15 @@ def analyze_text(text, apply_accents=True, fold_scripts=False):
         if 0xC0 <= o <= 0x24F or 0x1E00 <= o <= 0x1EFF:
             if apply_accents:
                 base = strip_combining(ch)
+                # Detect as accent if: decomposition changes the char, OR
+                # it's a Latin-1 Supplement letter (0xC0-0xFF) that doesn't decompose
                 if base and base != ch:
                     counts["accent"] = counts.get("accent", 0) + 1
                     spans.append(Span("accent", ch, base))
+                elif 0xC0 <= o <= 0xFF and unicodedata.category(ch).startswith("L"):
+                    # Latin-1 Supplement letter without NFD decomposition (e.g. ø, ð, þ, ß)
+                    counts["accent"] = counts.get("accent", 0) + 1
+                    spans.append(Span("accent", ch, ch))
             else:
                 counts["nonascii"] = counts.get("nonascii", 0) + 1
                 spans.append(Span("nonascii", ch, ch))
