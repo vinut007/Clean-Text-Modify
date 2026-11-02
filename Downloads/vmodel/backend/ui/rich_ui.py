@@ -1,4 +1,4 @@
-"""Rich UI package (stub)."""
+"""Rich UI package (stub - consistent text-box rendering)."""
 from __future__ import annotations
 
 RICH_AVAILABLE = False

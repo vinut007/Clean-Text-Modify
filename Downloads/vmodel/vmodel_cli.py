@@ -26,14 +26,9 @@ from backend.ai import fast_risk_review as risk_review_mod
 from backend.ai import risk as risk_mod
 from backend.ai.llama_server_manager import ensure_ai_available, stop_llama_server
 
-# Rich UI
-try:
-    from backend.ui import rich_ui as ui
-    RICH_AVAILABLE = True
-except Exception as e:
-    RICH_AVAILABLE = False
-    import traceback
-    print(f"WARNING: Rich UI not available: {type(e).__name__}: {e}")
+# Rich UI (stub - consistent text-box rendering every run)
+from backend.ui import rich_ui as ui
+RICH_AVAILABLE = False
 
 
 # ----------------------------------------------------------------------------
@@ -1358,32 +1353,26 @@ def main() -> None:
         # 4. load rows
         rows = [list(r) for r in td.rows]
 
-        # Show file preview with Rich UI
-        if RICH_AVAILABLE:
-            # Calculate text cells
-            text_cells = sum(
-                1 for row in rows
-                for cell in row
-                if isinstance(cell, str) and cell.strip()
-            )
-            
-            # Show file info panel
-            fmt_name = Path(fpath).suffix.upper().replace('.', '')
-            info_table = ui.show_file_info(
-                Path(fpath).name, fmt_name,
-                len(rows), len(td.columns), text_cells
-            )
-            ui.console.print(ui.Panel(
-                info_table,
-                title="[bold cyan]FILE INFORMATION[/bold cyan]",
-                border_style="cyan",
-                box=ui.rich_box.ROUNDED,
-            ))
-            
-            # Show sample preview
-            if rows:
-                sample_table = ui.show_sample_preview(td.columns, rows[:5])
-                ui.console.print(sample_table)
+        # Show file preview (always shows, using stub UI panel)
+        text_cells = sum(
+            1 for row in rows
+            for cell in row
+            if isinstance(cell, str) and cell.strip()
+        )
+        fmt_name = Path(fpath).suffix.upper().replace('.', '')
+        info_table = ui.show_file_info(
+            Path(fpath).name, fmt_name,
+            len(rows), len(td.columns), text_cells
+        )
+        ui.console.print(ui.Panel(
+            info_table,
+            title="FILE INFORMATION",
+            border_style="cyan",
+        ))
+        # Show sample preview
+        if rows:
+            sample_table = ui.show_sample_preview(td.columns, rows[:5])
+            ui.console.print(sample_table)
 
         # Initialize skip_cols before auto-detection
         skip_cols: set[int] = set()
