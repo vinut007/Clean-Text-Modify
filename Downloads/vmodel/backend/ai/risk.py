@@ -30,6 +30,9 @@ class _Result:
 # Categories that are safe to auto-approve without LLM review
 SAFE_CATEGORIES = {"emoji", "symbol", "punctuation"}
 
+# Categories that are high-risk extraction failures - auto-classify as high without LLM
+HIGH_RISK_CATEGORIES = {"html_entity", "html_tag", "symbol_noise", "cjk_punct_repeat", "repeated_punct"}
+
 # System prompt for classifying cleaning pattern risk
 _RISK_SYSTEM = """You review text-cleaning pattern changes (src → dst) and assign a risk level.
 
@@ -78,6 +81,13 @@ def ai_review(patterns, provider="llama", model=None, online=False):
             results.append(_Result(
                 p.src, p.dst, p.category, p.total_count,
                 "low", f"Auto-approved: {p.category}",
+            ))
+            continue
+        # High-risk extraction failures don't need LLM either
+        if p.category in HIGH_RISK_CATEGORIES:
+            results.append(_Result(
+                p.src, p.dst, p.category, p.total_count,
+                "high", f"Auto-classified: {p.category}",
             ))
             continue
         results.append(None)  # placeholder

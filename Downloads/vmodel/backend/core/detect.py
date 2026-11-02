@@ -1,6 +1,7 @@
 """Text detection: categorize accents, mojibake, emoji, symbols, invisible."""
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 import unicodedata
@@ -12,6 +13,21 @@ INVISIBLE = {
     "\u205f", "\u3000", "\u200b", "\u200c", "\u200d", "\u200e", "\u200f",
     "\ufeff",
 }
+
+# HTML entities: &nbsp;, &amp;, &lt;, &gt;, &#123;, &quot;, &apos;, etc.
+_HTML_ENTITY_RE = re.compile(r"&[a-zA-Z][a-zA-Z0-9]*;|&#[0-9]+;|&#x[0-9a-fA-F]+;")
+
+# HTML tags: <div>, <span>, </p>, etc.
+_HTML_TAG_RE = re.compile(r"</?[a-zA-Z][a-zA-Z0-9]*[^>]*>")
+
+# Repeated CJK punctuation: 、。、。 etc.
+_CJK_PUNCT_RE = re.compile(r"[、。，！？；：]、*[、。，！？；：]")
+
+# Symbol noise: runs of symbols like * %# @(() ^%$ etc.
+_SYMBOL_NOISE_RE = re.compile(r"[#%@$^&*(){}[\]<>/\\|`~]{3,}")
+
+# Repeated punctuation runs: !!! ??? ... etc.
+_REPEATED_PUNCT_RE = re.compile(r"([!?.,;::-])\1{2,}")
 
 
 @dataclass
@@ -84,6 +100,31 @@ def analyze_text(text, apply_accents=True, fold_scripts=False):
             continue
 
         i += 1
+
+    # HTML entities: &nbsp;, &amp;, &lt;, &#123;, etc.
+    for m in _HTML_ENTITY_RE.finditer(text):
+        counts["html_entity"] = counts.get("html_entity", 0) + 1
+        spans.append(Span("html_entity", m.group(0), ""))
+
+    # HTML tags: <div>, <span>, etc.
+    for m in _HTML_TAG_RE.finditer(text):
+        counts["html_tag"] = counts.get("html_tag", 0) + 1
+        spans.append(Span("html_tag", m.group(0), ""))
+
+    # Symbol noise runs: * %# @(() ^%$ etc.
+    for m in _SYMBOL_NOISE_RE.finditer(text):
+        counts["symbol_noise"] = counts.get("symbol_noise", 0) + 1
+        spans.append(Span("symbol_noise", m.group(0), ""))
+
+    # Repeated CJK punctuation: 、。、 etc.
+    for m in _CJK_PUNCT_RE.finditer(text):
+        counts["cjk_punct_repeat"] = counts.get("cjk_punct_repeat", 0) + 1
+        spans.append(Span("cjk_punct_repeat", m.group(0), ""))
+
+    # Repeated punctuation: !!! ??? ... etc.
+    for m in _REPEATED_PUNCT_RE.finditer(text):
+        counts["repeated_punct"] = counts.get("repeated_punct", 0) + 1
+        spans.append(Span("repeated_punct", m.group(0), ""))
 
     class _Analysis:
         def __init__(self, spans, counts):
