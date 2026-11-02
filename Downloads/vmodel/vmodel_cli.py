@@ -1518,41 +1518,13 @@ def main() -> None:
             print(c(f"  Low risk patterns : {len(scan_result.low_patterns)}  (auto-approved)", FG_GREEN))
             print(c(f"  Medium risk patterns: {len(scan_result.medium_patterns)}  (auto-approved)", FG_YELLOW))
             print(c(f"  High risk patterns : {len(scan_result.high_patterns)}  (needs your approval)", FG_RED))
-
-            # Tier 2: AI pre-filter — only truly high-risk patterns reach human review
-            if ai_ready and scan_result.high_patterns:
-                print()
-                print(c("  Running AI pre-filter on high-risk patterns...", FG_CYAN))
-                if ai_ready and yes_no("Use AI pre-filter to reduce high-risk patterns? (slower but more accurate)", default=False):
-                    try:
-                        filtered = risk_mod.ai_review(
-                            scan_result.high_patterns,
-                            provider=os.environ.get("AI_PROVIDER_RESOLVED", "ollama"), model=None, online=False,
-                        )
-                        # Re-classify high_patterns based on AI decision
-                        ai_high = [it for it in filtered if it.risk == "high"]
-                        ai_auto = [it for it in filtered if it.risk != "high"]
-                        print(c(f"  AI pre-filter: {len(ai_high)} still high-risk, {len(ai_auto)} auto-approved", FG_GREEN))
-                        # Update high_patterns to only keep AI-confirmed high risk
-                        ai_high_set = {(it.src, it.dst) for it in ai_high}
-                        scan_result.high_patterns = [
-                            p for p in scan_result.high_patterns
-                            if (p.src, p.dst) in ai_high_set
-                        ]
-                        # Mark auto-approved ones as low
-                        for pattern in scan_result.low_patterns:
-                            pattern.user_decision = "approve"
-                    except Exception as e:
-                        print(c(f"  AI pre-filter skipped ({e}) — using heuristics only", FG_YELLOW))
-                else:
-                    print(c("  Skipping AI pre-filter — using heuristics only (fast)", FG_DIM))
+            print()
 
             if scan_result.high_patterns:
                 print()
                 print(c("═════════════════════════════════════════════════════", FG_MAGENTA))
-                print(c("  TIER 2 — HIGH-RISK REVIEW (one-by-one)", FG_RED, BOLD))
+                print(c("  HIGH-RISK PATTERNS (needs your approval)", FG_RED, BOLD))
                 print(c("═════════════════════════════════════════════════════", FG_MAGENTA))
-                print(c("  Using offline model: gemma-2-2b (local llama.cpp)", FG_CYAN))
                 print(c("  You decide per pattern: (a)pprove / (r)eject / (m)odify ALL / (s)kip / (c)custom ALL", FG_YELLOW))
 
                 # Bulk decision option
@@ -1572,17 +1544,7 @@ def main() -> None:
                     print(c(f"  Rejected all {len(scan_result.high_patterns)} high-risk pattern(s).", FG_RED))
                 else:
                     for i, pattern in enumerate(scan_result.high_patterns, 1):
-                        # LLM suggestion
-                        llm = risk_review_mod.review_high_risk_pattern(
-                            pattern.src, pattern.dst, pattern.category,
-                            pattern.total_count, pattern.reason,
-                            model=os.environ.get("AI_MODEL", "qwen2.5:3b"),
-                            original_risk=pattern.risk,
-                        )
-                        llm_risk = llm.get("risk", "high")
-                        llm_reason = llm.get("reason", "")
-
-                        # Compact diff context (show only the changed portion)
+                        # Compact diff context
                         first_cell = pattern.changes[0]
                         diff = _diff_context(first_cell.original, first_cell.cleaned)
 
@@ -1592,7 +1554,6 @@ def main() -> None:
                         print(c(f"    Affects  : {pattern.total_count} cell(s)", FG_CYAN))
                         print(f"    Example  : {diff}")
                         print(c(f"    Heuristic: {pattern.reason}", FG_DIM))
-                        print(c(f"    LLM says : {llm_risk} — {llm_reason}", FG_YELLOW, BOLD))
 
                         while True:
                             break_outer = False
@@ -1657,7 +1618,6 @@ def main() -> None:
             total_text_cells = sum(1 for r in rows for c in r if isinstance(c, str) and c)
             print(c(f"  Applying all approved changes to {len(rows):,} rows / {total_text_cells:,} text cells...", FG_CYAN))
             progress = Progress(total=len(rows), label="Applying changes")
-            # snapshot originals before apply_decisions mutates rows in place
             original_rows = [list(r) for r in rows]
             cleaned_rows, changed_cells, err_rows = fast_scan_mod.apply_decisions(
                 rows, scan_result,
@@ -1665,8 +1625,7 @@ def main() -> None:
             )
             progress.finish(f"{changed_cells:,} cells changed, {err_rows:,} rows with errors")
 
-            # Write output with error column — detected on ORIGINAL values,
-            # annotated ✓fixed/✗kept so users see what was actually cleaned
+            # Write output with error column
             print(c(f"  Annotating errors for {len(cleaned_rows):,} rows ...", FG_CYAN))
             progress = Progress(total=len(cleaned_rows), label="Annotating errors")
             columns = list(td.columns)
@@ -1687,9 +1646,6 @@ def main() -> None:
                         errs = _mark_fixed(errs, vo, v if isinstance(v, str) else "")
                         err_parts.append(f"[{col}] " + ", ".join(errs))
                         reported_cols.add(cidx)
-                # Also report every column whose value actually changed but was
-                # not captured by the error detector, so error_mapped_row_by_row
-                # shows all updated columns (not just detector-flagged ones).
                 for cidx, col in enumerate(td.columns):
                     if cidx in reported_cols or cidx >= len(row):
                         continue
@@ -1709,7 +1665,7 @@ def main() -> None:
                 for cidx in range(len(row)):
                     row[cidx] = _sanitize_cell(row[cidx])
 
-            # Build output with cleaned-data-only column naming
+            # Build output
             out_columns: list[str] = []
             for i, col in enumerate(td.columns):
                 suffix = "_not_clean" if (i + 1) in skip_cols else "_cleaned"
@@ -1718,7 +1674,6 @@ def main() -> None:
             out_columns.append("high risk_cleaned")
             out_columns.append("before after")
 
-            # Track rows with changes
             changed_rows_review: set[int] = set()
             progress = Progress(total=len(cleaned_rows), label="Tracking changes")
             for ridx in range(len(cleaned_rows)):
@@ -1731,7 +1686,6 @@ def main() -> None:
                     progress.update(ridx + 1)
             progress.finish(f"{len(changed_rows_review):,} rows changed")
 
-            # Build output rows
             out_rows_review: list[list[str]] = []
             progress = Progress(total=len(cleaned_rows), label="Building output rows")
             for ridx, row in enumerate(cleaned_rows):
@@ -1754,7 +1708,7 @@ def main() -> None:
                     progress.update(ridx + 1)
             progress.finish(f"{len(out_rows_review):,} rows built")
 
-            # Sanitize all cell values before export
+            # Sanitize
             print(c(f"  Sanitizing {len(out_rows_review):,} rows for export ...", FG_CYAN))
             progress = Progress(total=len(out_rows_review), label="Sanitizing rows")
             for ridx, row in enumerate(out_rows_review):
@@ -1764,7 +1718,7 @@ def main() -> None:
                     progress.update(ridx + 1)
             progress.finish(f"{len(out_rows_review):,} rows sanitized")
 
-            # Export as XLSX only
+            # Export
             src_path = Path(fpath)
             out_path = str(src_path.parent / f"{src_path.stem}_VModel_Cleaned.xlsx")
             print(c(f"  Writing output file: {Path(out_path).name} ...", FG_CYAN))
