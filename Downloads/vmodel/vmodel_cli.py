@@ -1525,8 +1525,7 @@ def main() -> None:
                 print(c("  Running AI pre-filter on high-risk patterns (local Gemma)...", FG_CYAN))
                 try:
                     filtered = risk_mod.ai_review(
-                        [{"src": p.src, "dst": p.dst, "category": p.category, "count": p.total_count}
-                         for p in scan_result.high_patterns],
+                        scan_result.high_patterns,
                         provider=os.environ.get("AI_PROVIDER_RESOLVED", "ollama"), model=None, online=False,
                     )
                     # Re-classify high_patterns based on AI decision
