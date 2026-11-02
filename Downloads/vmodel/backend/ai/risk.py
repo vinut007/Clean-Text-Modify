@@ -49,8 +49,11 @@ Rules:
 Respond with ONLY: low, medium, or high"""
 
 
-def _llm_classify(src: str, dst: str, category: str, reason: str, model: str) -> str:
-    """Ask Ollama to classify a pattern's risk level. Returns 'low'/'medium'/'high'."""
+def _llm_classify(src: str, dst: str, category: str, reason: str, model: str, original_risk: str = "high") -> str:
+    """Ask Ollama to classify a pattern's risk level. Returns 'low'/'medium'/'high'.
+
+    On any error, falls back to original_risk (safe default: keep heuristic level).
+    """
     prompt = f"""Classify this cleaning pattern:
 
 Category: {category}
@@ -76,7 +79,7 @@ Risk level (low/medium/high):"""
             return "low"
     except Exception:
         pass
-    return "high"  # safe default
+    return original_risk
 
 
 def ai_review(patterns, provider="llama", model=None, online=False):
@@ -106,7 +109,7 @@ def ai_review(patterns, provider="llama", model=None, online=False):
             ))
             continue
 
-        risk = _llm_classify(p.src, p.dst, p.category, p.reason, model)
+        risk = _llm_classify(p.src, p.dst, p.category, p.reason, model, original_risk=p.risk)
         results.append(_Result(
             p.src, p.dst, p.category, p.total_count,
             risk, p.reason,

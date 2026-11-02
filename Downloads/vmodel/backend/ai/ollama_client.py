@@ -79,8 +79,8 @@ def get_status() -> Status:
     models = _list_models()
     if not models:
         return Status(offline_available=True, offline_model=None)
-    # Prefer smaller/fast models for risk pre-filtering (under ~5 GB)
-    preferred = ["qwen2.5:3b", "gemma4:e2b", "gemma2:2b", "gemma:2b",
+    # Prefer gemma/small models for risk pre-filtering
+    preferred = ["gemma2:2b", "gemma:2b", "gemma4:e2b", "qwen2.5:3b",
                  "phi3", "llama3.2:1b", "qwen2.5:0.5b"]
     for p in preferred:
         for m in models:

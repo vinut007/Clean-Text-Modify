@@ -20,8 +20,11 @@ Classify the risk of APPLYING this change:
 Respond with ONLY: low, medium, or high"""
 
 
-def review_high_risk_pattern(src, dst, category, total_count, reason, model="gemma2:2b"):
-    """Return dict with risk and reason for a high-risk pattern, using Ollama."""
+def review_high_risk_pattern(src, dst, category, total_count, reason, model="gemma2:2b", original_risk="high"):
+    """Return dict with risk and reason for a high-risk pattern, using Ollama.
+
+    On LLM failure, falls back to original_risk instead of defaulting to high.
+    """
     status = get_status()
     if status.offline_available and status.offline_model:
         model = status.offline_model
@@ -50,9 +53,9 @@ Risk level (low/medium/high):"""
         elif "low" in reply:
             risk = "low"
         else:
-            risk = "high"
+            risk = original_risk
     except Exception:
-        risk = "high"
+        risk = original_risk
 
     return {
         "risk": risk,

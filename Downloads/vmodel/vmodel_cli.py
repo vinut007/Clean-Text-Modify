@@ -1574,6 +1574,7 @@ def main() -> None:
                             pattern.src, pattern.dst, pattern.category,
                             pattern.total_count, pattern.reason,
                             model=os.environ.get("AI_MODEL", "qwen2.5:3b"),
+                            original_risk=pattern.risk,
                         )
                         llm_risk = llm.get("risk", "high")
                         llm_reason = llm.get("reason", "")
