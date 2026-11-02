@@ -104,6 +104,10 @@ def analyze_text(text, apply_accents=True, fold_scripts=False):
             if 0x0400 <= o <= 0x04FF:
                 counts["transliterate"] = counts.get("transliterate", 0) + 1
                 spans.append(Span("transliterate", ch, ch))
+            # Greek (U+0370-U+03FF) -> transliterate to ASCII (high risk, needs review)
+            elif 0x0370 <= o <= 0x03FF:
+                counts["transliterate_greek"] = counts.get("transliterate_greek", 0) + 1
+                spans.append(Span("transliterate_greek", ch, ch))
             else:
                 counts["nonascii"] = counts.get("nonascii", 0) + 1
                 spans.append(Span("nonascii", ch, ch))
