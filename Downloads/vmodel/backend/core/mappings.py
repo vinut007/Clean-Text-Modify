@@ -102,7 +102,7 @@ TYPOGRAPHIC: dict[str, str] = {
     "″": '"', "ʺ": '"',
     "ª": "a", "º": "o",
     # Remove these symbols entirely (not convert)
-    "¶": "", "§": "", "†": "", "‡": "", "№": "",
+    "¶": "", "§": "§", "†": "", "‡": "", "№": "",
     "℮": "approx",
     "⩀": "=", "⩂": "<=", "⩃": ">=",
     # Keycap number emojis (1️⃣ 2️⃣ 3️⃣ etc.) -> plain digits
