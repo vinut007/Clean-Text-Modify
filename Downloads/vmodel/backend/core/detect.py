@@ -100,8 +100,13 @@ def analyze_text(text, apply_accents=True, fold_scripts=False):
 
         # Other non-ASCII
         if o > 127:
-            counts["nonascii"] = counts.get("nonascii", 0) + 1
-            spans.append(Span("nonascii", ch, ch))
+            # Cyrillic (U+0400-U+04FF) -> transliterate to ASCII (low risk)
+            if 0x0400 <= o <= 0x04FF:
+                counts["transliterate"] = counts.get("transliterate", 0) + 1
+                spans.append(Span("transliterate", ch, ch))
+            else:
+                counts["nonascii"] = counts.get("nonascii", 0) + 1
+                spans.append(Span("nonascii", ch, ch))
             i += 1
             continue
 
