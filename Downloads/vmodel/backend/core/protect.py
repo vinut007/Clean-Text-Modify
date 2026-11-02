@@ -21,6 +21,10 @@ _PATTERNS: list[tuple[str, re.Pattern]] = [
     ("uuid", re.compile(r"\b[0-9a-fA-F]{8}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{12}\b")),
     # Bullet points preserved exactly as-is (never modified)
     ("bullet", re.compile(r"[•°]")),
+    # Currency symbols preserved exactly as-is (never converted to text)
+    ("currency", re.compile(r"[€£¥$₹₽₩₿¢¤]")),
+    # Logical NOT sign preserved as-is
+    ("not_sign", re.compile(r"¬")),
 ]
 
 

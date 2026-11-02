@@ -114,16 +114,7 @@ TYPOGRAPHIC: dict[str, str] = {
     "5⃣": "5", "6⃣": "6", "7⃣": "7", "8⃣": "8", "9⃣": "9",
     # Hash and asterisk keycaps
     "#️⃣": "#", "*️⃣": "*",
-    # Currency symbols -> ASCII
-    "¢": "c", "£": "PS", "¥": "Y", "¤": "cur",
-    "€": "EUR", "₹": "Rs", "₽": "R", "₩": "W", "₫": "D",
-    "₴": "U", "₦": "N", "₱": "P", "₲": "G", "₮": "T",
-    "₺": "L", "₼": "M", "₾": "L", "₿": "BTC", "฿": "B",
-    "₡": "c", "₢": "Cr", "₣": "F", "₤": "L", "₥": "m",
-    "₧": "Pts", "₨": "Rs", "₪": "NIS", "₭": "K",
-    "₰": "", "₳": "A", "₵": "C", "₸": "T",
-    "﷼": "IRR", "﹩": "$", "￠": "c", "￡": "L",
-    "￥": "Y", "￦": "W",
+    # Currency symbols -> preserved as-is (never converted)
     # Math operators -> ASCII
     "√": "sqrt", "∛": "cbrt", "∜": "sqrt[4]",
     "≡": "=", "≢": "!=", "∼": "~", "≃": "~=", "≅": "~=",
@@ -139,7 +130,7 @@ TYPOGRAPHIC: dict[str, str] = {
     "≪": "<<", "≫": ">>",
     "≪=": "<<=", "≫=": ">>=",
     "∠": "angle", "∟": "L", "⌀": "dia",
-    "¬": "not",
+     # NOT SIGN U+00AC — preserved as-is (not in mappings)
     # Arrows -> ASCII
     "←": "<-", "↑": "^", "→": "->", "↓": "v",
     "↔": "<->", "↕": "updown",
