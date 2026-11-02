@@ -79,10 +79,10 @@ def scan_all_cells(columns, rows, skip_cols, opts, progress_callback=None) -> Sc
                     primary_count = cnt
                     primary_cat = cat
 
-            # Risk: accent/mojibake = low; emoji/symbol = medium; nonascii = high
-            if primary_cat in ("mojibake", "replacement", "invalid_utf8", "accent"):
+            # Risk: emoji/symbol/punctuation = low; accent = medium; mojibake/replacement/invalid_utf8/nonascii = high
+            if primary_cat in ("emoji", "symbol", "punctuation"):
                 risk = "low"
-            elif primary_cat in ("emoji", "symbol", "punctuation"):
+            elif primary_cat == "accent":
                 risk = "medium"
             else:
                 risk = "high"

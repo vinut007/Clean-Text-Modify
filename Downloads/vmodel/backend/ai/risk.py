@@ -28,8 +28,7 @@ class _Result:
 
 
 # Categories that are safe to auto-approve without LLM review
-SAFE_CATEGORIES = {"mojibake", "replacement", "invalid_utf8", "accent", "invisible",
-                   "emoji", "symbol", "punctuation"}
+SAFE_CATEGORIES = {"emoji", "symbol", "punctuation"}
 
 # System prompt for classifying cleaning pattern risk
 _RISK_SYSTEM = """You review text-cleaning pattern changes (src → dst) and assign a risk level.
