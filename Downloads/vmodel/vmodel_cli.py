@@ -1658,6 +1658,13 @@ def main() -> None:
             progress = Progress(total=len(cleaned_rows), label="Annotating errors")
             columns = list(td.columns)
             columns.append("VModel_Errors")
+            
+            # Build set of row indices that have HIGH RISK patterns
+            high_risk_rows: set[int] = set()
+            for pattern in scan_result.high_patterns:
+                for change in pattern.changes:
+                    high_risk_rows.add(change.row_index)
+            
             for ridx, row in enumerate(cleaned_rows):
                 err_parts: list[str] = []
                 orig_row = original_rows[ridx] if ridx < len(original_rows) else []
@@ -1674,6 +1681,7 @@ def main() -> None:
                         errs = _mark_fixed(errs, vo, v if isinstance(v, str) else "")
                         err_parts.append(f"[{col}] " + ", ".join(errs))
                         reported_cols.add(cidx)
+                # Capture ALL changes (including low/medium risk) not caught by _cell_errors
                 for cidx, col in enumerate(td.columns):
                     if cidx in reported_cols or cidx >= len(row):
                         continue
@@ -1702,18 +1710,7 @@ def main() -> None:
             out_columns.append("high risk_cleaned")
             out_columns.append("before after")
 
-            changed_rows_review: set[int] = set()
-            progress = Progress(total=len(cleaned_rows), label="Tracking changes")
-            for ridx in range(len(cleaned_rows)):
-                for cidx in range(len(td.columns)):
-                    if cidx < len(original_rows[ridx]) and cidx < len(cleaned_rows[ridx]):
-                        if original_rows[ridx][cidx] != cleaned_rows[ridx][cidx]:
-                            changed_rows_review.add(ridx)
-                            break
-                if ridx % 1000 == 0 or ridx == len(cleaned_rows) - 1:
-                    progress.update(ridx + 1)
-            progress.finish(f"{len(changed_rows_review):,} rows changed")
-
+            # Build output rows
             out_rows_review: list[list[str]] = []
             progress = Progress(total=len(cleaned_rows), label="Building output rows")
             for ridx, row in enumerate(cleaned_rows):
@@ -1722,7 +1719,8 @@ def main() -> None:
                     out_row.append(row[cidx] if cidx < len(row) else "")
                 err_cell = row[-1] if row and len(row) > len(td.columns) else ""
                 out_row.append(err_cell if isinstance(err_cell, str) else "")
-                out_row.append("yes" if ridx in changed_rows_review else "no")
+                # high risk_cleaned: only "yes" if row has high risk patterns
+                out_row.append("yes" if ridx in high_risk_rows else "no")
                 ba_parts: list[str] = []
                 for cidx in range(len(td.columns)):
                     if cidx < len(original_rows[ridx]) and cidx < len(row):
