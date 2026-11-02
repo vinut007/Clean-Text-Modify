@@ -19,6 +19,8 @@ _PATTERNS: list[tuple[str, re.Pattern]] = [
     ("phone", re.compile(
         r"(?<!\w)(?:\(\+\d{1,3}\)[\s\-./]?|\+\d{1,3}[\s\-./]?)?(?:\(\d{1,4}\)[\s\-./]?)?\d[\d\s\-./]{5,}\d(?!\w)")),
     ("uuid", re.compile(r"\b[0-9a-fA-F]{8}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{12}\b")),
+    # Bullet points preserved exactly as-is (never modified)
+    ("bullet", re.compile(r"[•°]")),
 ]
 
 
