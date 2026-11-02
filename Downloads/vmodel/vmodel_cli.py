@@ -467,7 +467,7 @@ def clean_file(
         import re as _re
         import time as _time
 
-        provider = os.environ.get("AI_PROVIDER", "ollama")
+        provider = os.environ.get("AI_PROVIDER_RESOLVED", os.environ.get("AI_PROVIDER", "ollama"))
         translate_model = os.environ.get("TRANSLATE_MODEL") or None
         backend_pref = (os.environ.get("TRANSLATE_BACKEND", "auto") or "auto").lower()
 
@@ -1199,20 +1199,26 @@ def clean_file_review_mode(
 def main() -> None:
     header()
 
-    # Local AI: llama.cpp when AI_PROVIDER=llama, otherwise Ollama (default)
-    ai_provider = os.environ.get("AI_PROVIDER", "ollama")
+    # Local AI: try llama.cpp first (port 8081), then Ollama fallback.
+    # Works consistently regardless of which server is running.
     ai_ready = False
-    if ai_provider == "llama":
-        print(c("  Starting local AI (Gemma via llama.cpp)...", FG_CYAN))
-        ai_ready = ensure_ai_available("llama")
-        if ai_ready:
-            print(c("  Local AI ready.", FG_GREEN))
-        else:
-            print(c("  Local AI unavailable — heuristics + fast clean only.", FG_YELLOW))
+    ai_provider_used = None
+
+    # Try llama.cpp first
+    print(c("  Checking local AI (llama.cpp port 8081)...", FG_CYAN))
+    if ensure_ai_available("llama"):
+        ai_ready = True
+        ai_provider_used = "llama"
+        print(c("  Local AI ready (llama.cpp).", FG_GREEN))
     else:
+        # Fallback to Ollama
         from backend.ai import ollama_client as _ai_cli
         _st = _ai_cli.get_status()
-        if not _st.offline_available:
+        if _st.offline_available:
+            ai_ready = True
+            ai_provider_used = "ollama"
+            print(c(f"  Local AI ready (Ollama: {_st.offline_model}).", FG_GREEN))
+        else:
             print(c("  Starting Ollama server...", FG_CYAN))
             try:
                 subprocess.Popen(
@@ -1226,11 +1232,16 @@ def main() -> None:
                 _st = _ai_cli.get_status()
                 if _st.offline_available:
                     break
-        ai_ready = _st.offline_available
-        if ai_ready:
-            print(c(f"  Local AI ready (Ollama: {_st.offline_model}).", FG_GREEN))
-        else:
-            print(c("  Ollama not reachable — install/start Ollama for translation.", FG_YELLOW))
+            ai_ready = _st.offline_available
+            ai_provider_used = "ollama" if ai_ready else None
+            if ai_ready:
+                print(c(f"  Local AI ready (Ollama: {_st.offline_model}).", FG_GREEN))
+            else:
+                print(c("  No local AI server — heuristics + fast clean only.", FG_YELLOW))
+
+    # Store provider for risk review
+    if ai_provider_used:
+        os.environ["AI_PROVIDER_RESOLVED"] = ai_provider_used
 
     # Mode selection (before file import)
     if RICH_AVAILABLE:
@@ -1527,7 +1538,7 @@ def main() -> None:
                     filtered = risk_mod.ai_review(
                         [{"src": p.src, "dst": p.dst, "category": p.category, "count": p.total_count}
                          for p in scan_result.high_patterns],
-                        provider="llama", model=None, online=False,
+                        provider=os.environ.get("AI_PROVIDER_RESOLVED", "ollama"), model=None, online=False,
                     )
                     # Re-classify high_patterns based on AI decision
                     ai_high = [it for it in filtered if it.risk == "high"]
@@ -1573,7 +1584,8 @@ def main() -> None:
                         # LLM suggestion
                         llm = risk_review_mod.review_high_risk_pattern(
                             pattern.src, pattern.dst, pattern.category,
-                            pattern.total_count, pattern.reason, model="gemma-2-2b",
+                            pattern.total_count, pattern.reason,
+                            model=os.environ.get("AI_MODEL", "qwen2.5:3b"),
                         )
                         llm_risk = llm.get("risk", "high")
                         llm_reason = llm.get("reason", "")
@@ -1789,6 +1801,6 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print()
         print(c("  Interrupted by user.", FG_RED))
-        if os.environ.get("AI_PROVIDER") == "llama":
+        if os.environ.get("AI_PROVIDER_RESOLVED") == "llama":
             stop_llama_server()
         sys.exit(1)
