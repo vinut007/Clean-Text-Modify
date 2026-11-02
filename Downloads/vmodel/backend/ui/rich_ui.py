@@ -35,7 +35,19 @@ def prompt_confirm(message, default=False):
 
 class Console:
     def print(self, obj):
-        print(obj)
+        if isinstance(obj, Panel):
+            # Render Panel as a text box
+            title = obj.title if obj.title else ""
+            border = "+" + "-" * (len(title) + 2) + "+" if title else "+------+"
+            lines = [border]
+            if title:
+                lines.append(f"| {title} |")
+                lines.append(border)
+            lines.append(str(obj.obj))
+            lines.append("+" + "-" * (len(lines[-1]) - 2) + "+")
+            print("\n".join(lines))
+        else:
+            print(obj)
 
 
 console = Console()
@@ -44,6 +56,7 @@ console = Console()
 class Panel:
     def __init__(self, obj, title="", border_style="", box=None):
         self.obj = obj
+        self.title = title
 
 
 class rich_box:
