@@ -103,6 +103,10 @@ def scan_all_cells(columns, rows, skip_cols, opts, progress_callback=None) -> Sc
                 pattern_groups[key] = []
             pattern_groups[key].append(change)
 
+        # Report progress after each row
+        if progress_callback:
+            progress_callback(ridx + 1)
+
     for (src, dst, cat), changes in pattern_groups.items():
         risk = changes[0].risk
         reason = f"{cat} → ASCII ({len(changes)} cell(s))"
@@ -146,8 +150,7 @@ def apply_decisions(rows, scan_result, progress_callback=None):
             if isinstance(val, str) and val:
                 rows_with_errors += 1
                 break
-
-    if progress_callback:
-        progress_callback(len(cleaned_rows))
+        if progress_callback:
+            progress_callback(ridx + 1)
 
     return cleaned_rows, changed_cells, rows_with_errors
