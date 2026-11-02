@@ -1520,6 +1520,34 @@ def main() -> None:
             print(c(f"  High risk patterns : {len(scan_result.high_patterns)}  (needs your approval)", FG_RED))
             print()
 
+            # Optional AI pre-filter — reduces high-risk patterns by classifying
+            # which are truly destructive vs. safe auto-approvable accents/mojibake/emoji
+            if ai_ready and scan_result.high_patterns:
+                print()
+                ai_choice = yes_no("Use AI pre-filter to reduce high-risk patterns? (slower but fewer to review)", default=False)
+                if ai_choice:
+                    try:
+                        print(c("  Running AI pre-filter...", FG_CYAN))
+                        filtered = risk_mod.ai_review(
+                            scan_result.high_patterns,
+                            provider=os.environ.get("AI_PROVIDER_RESOLVED", "ollama"), model=None, online=False,
+                        )
+                        ai_high = [it for it in filtered if it.risk == "high"]
+                        ai_auto = [it for it in filtered if it.risk != "high"]
+                        print(c(f"  AI pre-filter: {len(ai_high)} still high-risk, {len(ai_auto)} auto-approved", FG_GREEN))
+                        ai_high_set = {(it.src, it.dst) for it in ai_high}
+                        scan_result.high_patterns = [
+                            p for p in scan_result.high_patterns
+                            if (p.src, p.dst) in ai_high_set
+                        ]
+                        for pattern in scan_result.low_patterns:
+                            pattern.user_decision = "approve"
+                    except Exception as e:
+                        print(c(f"  AI pre-filter skipped ({e}) — using heuristics only", FG_YELLOW))
+                else:
+                    print(c("  Skipping AI pre-filter — showing all heuristic high-risk patterns (fast)", FG_DIM))
+            print()
+
             if scan_result.high_patterns:
                 print()
                 print(c("═════════════════════════════════════════════════════", FG_MAGENTA))
