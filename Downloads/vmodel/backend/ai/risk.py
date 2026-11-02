@@ -28,7 +28,7 @@ class _Result:
 
 
 # Categories that are safe to auto-approve without LLM review
-SAFE_CATEGORIES = {"emoji", "symbol", "punctuation"}
+SAFE_CATEGORIES = {"emoji", "symbol", "punctuation", "accent", "mojibake"}
 
 # Categories that are high-risk extraction failures - auto-classify as high without LLM
 HIGH_RISK_CATEGORIES = {"html_entity", "html_tag", "symbol_noise", "cjk_punct_repeat", "repeated_punct"}
