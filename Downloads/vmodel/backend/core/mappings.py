@@ -290,6 +290,24 @@ EMOJI_REMOVE_RANGES = [
     (0x1F93C, 0x1F945),   # more symbols
     (0x1F947, 0x1F9FF),   # more symbols
     (0x20E3, 0x20E3),     # combining enclosing keycap (1⃣ 2⃣ 3⃣ -> 1 2 3)
+    # Single-codepoint emoji outside the blocks above (Unicode Emoji=Yes;
+    # © ® ™ are deliberately NOT here — legal/typo signs stay)
+    (0x203C, 0x203C),     # ‼ double exclamation mark
+    (0x2049, 0x2049),     # ⁉ exclamation question mark
+    (0x2139, 0x2139),     # ℹ information source
+    (0x2194, 0x2199),     # ↔ ↕ ↖ ↗ ↘ ↙ arrows
+    (0x21A9, 0x21AA),     # ↩↪ hooked arrows
+    (0x25AA, 0x25AB),     # ▪▫ black/white small square
+    (0x25FB, 0x25FE),     # ◻◼◽◾ medium squares
+    (0x2934, 0x2935),     # ⤴⤵ arrows
+    (0x2B05, 0x2B07),     # ⬅⬆⬇ arrows
+    (0x2B1B, 0x2B1C),     # ⬛⬜ large squares
+    (0x2B50, 0x2B50),     # ⭐ star
+    (0x2B55, 0x2B55),     # ⭕ heavy large circle
+    (0x3030, 0x3030),     # 〰 wavy dash
+    (0x303D, 0x303D),     # 〽 part alternation mark
+    (0x3297, 0x3297),     # ㊗ Japanese "congratulations"
+    (0x3299, 0x3299),     # ㊙ Japanese "secret"
 ]
 
 # Non-Latin script ranges to PRESERVE (never remove)
@@ -358,6 +376,11 @@ PRE_MOJIBAKE_FIX: dict[str, str] = {
     "â€¦": "...",      # ellipsis — ftfy gives single period (.)
     "â„¢": "™",        # trademark — ftfy mangles to â"¢
     "â€¬": "",         # pop direction formatter (U+202C) — ftfy mangles, remove
+    # Double-encoded replacement marker: bytes EF BF BD (U+FFFD) encoded
+    # twice. ftfy wrongly yields "ïÿ½" (iy1/2 downstream) — map straight to
+    # U+FFFD so the replacement-removal step deletes it.
+    "Ã¯Ã¿Â½": "�",
+    "ïÿ½": "�",
 }
 
 # POST_MOJIBAKE_FIX: standalone fragments ftfy leaves alone, applied AFTER ftfy

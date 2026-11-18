@@ -7,6 +7,7 @@ Guarantees:
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 import ftfy
@@ -17,7 +18,7 @@ from .mappings import (
     SCRIPT_TO_LATIN, SYMBOL_TO_ASCII, TYPOGRAPHIC, is_emoji_remove,
     is_preserve_script, strip_combining,
 )
-from .protect import protect, restore
+from .protect import protect, restore, CURRENCY_SYMBOLS_RE
 
 # textacy optional import (provides battle-tested noise normalization)
 try:
@@ -323,6 +324,7 @@ def clean_cell(text: str, opts: CleanOptions, column: str | None = None) -> Cell
                 working = working.replace(src, PRE_MOJIBAKE_FIX[src])
 
     # 1. mojibake first (encoding-level repair, before protecting)
+    mojibake_fixed = False
     if opts.fix_mojibake:
         # iterate: double/triple-encoded mojibake needs multiple passes;
         # stop when stable or after 4 passes to avoid pathological loops
@@ -339,6 +341,12 @@ def clean_cell(text: str, opts: CleanOptions, column: str | None = None) -> Cell
                 pass
             if working == prev:
                 break
+        # Only label as mojibake when repair changed text AND the original
+        # had mojibake-like sequences (not HTML-entity decode, etc.)
+        if working != original and re.search(
+            r"Ã.|Â.|â[\x80-\xff]|â€|ï¿|Ã©|Ã¨|Ãª|Ã®|Ã¹|Ã¼", original
+        ):
+            mojibake_fixed = True
 
     # 2. protect structural tokens
     # Convert superscript footnote markers to plain digits before protection,
@@ -433,8 +441,13 @@ def clean_cell(text: str, opts: CleanOptions, column: str | None = None) -> Cell
                 # fullwidth digits/punctuation fold to ASCII
                 if (opts.fold_symbols or do_translit) and not unicodedata.category(ch).startswith("L"):
                     folded = FULLWIDTH[ch]
-            elif (opts.fold_scripts or do_translit) and ch in SCRIPT_TO_LATIN:
-                # non-Latin script -> English letters (β→b, л→l, Ա→A, ل→l);
+            elif ch in SCRIPT_TO_LATIN and (
+                opts.fold_scripts or do_translit
+                # Greek (incl. tonos ό/ί/ά) — TYPOGRAPHIC only has plain letters,
+                # so without this, fold_symbols yields mixed Mnimόnio garbage
+                or (0x0370 <= o <= 0x1FFF and (opts.fold_symbols or opts.fold_accents))
+            ):
+                # non-Latin script -> English letters (β→b, л→l, Ա->A, ل->l);
                 # strict mode (do_translit) implies this before the final
                 # non-ASCII strip, so scripts transliterate instead of vanish
                 folded = SCRIPT_TO_LATIN[ch]
@@ -481,9 +494,14 @@ def clean_cell(text: str, opts: CleanOptions, column: str | None = None) -> Cell
         working = "".join(SYMBOL_TO_ASCII.get(ch, ch) for ch in working)
         # Remove orphaned ZWJ left after emoji removal
         working = working.replace("\u200d", "")
-    if do_translit:
-        # Strict mode: romanize remaining non-ASCII instead of deleting (anyascii),
-        # covering 124k chars / Unicode 16 — beats unidecode on CJK/Cyrillic/Greek.
+        # Remove orphaned emoji-presentation selectors (❤️ -> base removed,
+        # leftover FE0F/FE0E is invisible junk; © ® ™ keep their base char)
+        working = working.replace("\ufe0f", "").replace("\ufe0e", "")
+    if do_translit or opts.fold_scripts:
+        # Strict mode / transliterate prompt: romanize remaining non-ASCII
+        # instead of deleting (anyascii), covering 124k chars / Unicode 16 —
+        # CJK, Hangul, Indic, Thai, Georgian, Kana etc. Protected tokens are
+        # still placeholders here, so URLs/money/©®™ are untouched.
         # Falls back to deletion if anyascii isn't installed (e.g. Python 3.15 has
         # no lingua wheel, but anyascii does ship a cp315 wheel).
         try:
@@ -492,6 +510,12 @@ def clean_cell(text: str, opts: CleanOptions, column: str | None = None) -> Cell
         except Exception:
             import re as _re
             working = _re.sub(r"[^\x00-\x7F]", "", working)
+
+    # 5-early. Replacement char (U+FFFD) — original bytes were invalid UTF-8
+    # and already lost; drop the marker entirely (never a visible "?").
+    # Runs BEFORE the whitespace collapse so "a \ufffd b" -> "a b".
+    if "\ufffd" in working:
+        working = working.replace("\ufffd", "")
 
     # 5a. collapse internal whitespace runs left behind by removals:
     #   "Hello 😀 world" -> "Hello world" (emoji gone, single space)
@@ -514,12 +538,18 @@ def clean_cell(text: str, opts: CleanOptions, column: str | None = None) -> Cell
     #      slash-delimited text). Those accents were skipped during the
     #      per-char fold (step 4) because placeholders pass through untouched.
     #      Fold them now so the output is consistently ASCII-clean.
+    #      Restored protected SYMBOLS (currency ƒ €, bullet, © ® ™ ...) stay
+    #      byte-identical — they were never meant to fold.
     if opts.fold_accents and any(ord(c) > 127 for c in working):
         import unicodedata
-        working = "".join(
-            LATIN_ACCENTS.get(ch, ch) if ch in LATIN_ACCENTS else ch
-            for ch in working
-        )
+
+        def _fold_restored(ch: str) -> str:
+            if ch in LATIN_ACCENTS and not (
+                    CURRENCY_SYMBOLS_RE.fullmatch(ch) or ch in "•°©®™"):
+                return LATIN_ACCENTS[ch]
+            return ch
+
+        working = "".join(_fold_restored(ch) for ch in working)
 
     # 6a. trim edge whitespace left by removals/collapses ("  test " -> "test").
     # Protected tokens are \x00PROTn\x00 placeholders here (no edge spaces),
@@ -545,6 +575,29 @@ def clean_cell(text: str, opts: CleanOptions, column: str | None = None) -> Cell
     analysis = analyze_text(protected_text, apply_accents=opts.fold_accents,
                             fold_scripts=(opts.fold_scripts or do_translit))
     counts = dict(analysis.counts)
+    # Label encoding repairs as mojibake (analyze runs post-repair, so the
+    # original cafÃ© sequences are already gone by this point).
+    if mojibake_fixed:
+        # ï¿½ / double-encoded Ã¯Ã¿Â½ (U+FFFD read as cp1252) = lost bytes →
+        # replacement (high), not mojibake (low)
+        if ("ï¿½" in original or "�" in original
+                or "Ã¯Ã¿Â½" in original or "ïÿ½" in original):
+            counts["replacement"] = counts.get("replacement", 0) + 1
+        else:
+            counts["mojibake"] = counts.get("mojibake", 0) + 1
+    # Pull high-risk features from the ORIGINAL that cleaning/protection
+    # destroyed or hid (ftfy decodes HTML; protect() swallows $ etc.).
+    if original:
+        orig_counts = analyze_text(original, apply_accents=False).counts
+        # empty_garbage is judged on the raw cell: protect() hides digits
+        # inside money tokens, making "#@#$1232" look like "#@#" (garbage).
+        counts["empty_garbage"] = orig_counts.get("empty_garbage", 0)
+        for cat in ("html_entity", "html_tag", "replacement",
+                    "empty_garbage", "symbol_noise",
+                    "repeated_punct", "cjk_punct_repeat"):
+            o = orig_counts.get(cat, 0)
+            if o and not counts.get(cat):
+                counts[cat] = o
     for k, v in prot.counts.items():
         counts[f"protected_{k}"] = v
 

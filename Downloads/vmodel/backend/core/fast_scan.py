@@ -1,12 +1,15 @@
 """Fast scanning: detect cleaning patterns across all cells, group by risk."""
 from __future__ import annotations
 
+import unicodedata
+from collections import Counter
 from dataclasses import dataclass, field
 
 from backend.core.clean import clean_cell, CleanOptions
+from backend.core.detect import classify_nonascii
 
 
-@dataclass
+@dataclass(slots=True)
 class CellChange:
     row_index: int
     col_index: int
@@ -17,7 +20,7 @@ class CellChange:
     risk: str
 
 
-@dataclass
+@dataclass(slots=True)
 class UniquePattern:
     src: str
     dst: str
@@ -31,7 +34,7 @@ class UniquePattern:
     cell_overrides: dict = field(default_factory=dict)
 
 
-@dataclass
+@dataclass(slots=True)
 class ScanResult:
     total_rows: int
     total_cols: int
@@ -41,6 +44,97 @@ class ScanResult:
     medium_patterns: list[UniquePattern] = field(default_factory=list)
     high_patterns: list[UniquePattern] = field(default_factory=list)
     all_changes: list[CellChange] = field(default_factory=list)
+
+
+def _infer_category(original: str, cleaned: str) -> str:
+    """Infer primary category from chars removed/changed when counts are empty.
+
+    Folding that runs before analyze (dashes, ellipsis, mojibake repair) can
+    leave outcome.counts empty even though the cell changed — classify those
+    diffs so symbol/punctuation/accent still land in the low-risk auto-approve
+    buckets instead of falling through as 'other' -> high.
+    """
+    oc, cc = Counter(original), Counter(cleaned)
+    cats: Counter = Counter()
+    for ch, n in oc.items():
+        rem = n - cc.get(ch, 0)
+        if rem <= 0 or ord(ch) < 128:
+            continue
+        if ch == "�":
+            cats["replacement"] += rem
+        elif 0x0400 <= ord(ch) <= 0x04FF:
+            cats["transliterate"] += rem
+        elif 0x0370 <= ord(ch) <= 0x03FF:
+            cats["transliterate_greek"] += rem
+        elif unicodedata.category(ch) == "Mn" or (
+            0xC0 <= ord(ch) <= 0x24F and unicodedata.category(ch).startswith("L")
+        ):
+            cats["accent"] += rem
+        else:
+            cats[classify_nonascii(ch)] += rem
+    if cats:
+        # High-risk categories win ties so they still reach human review
+        high = [c for c in cats if c not in (
+            "emoji", "symbol", "punctuation", "accent", "mojibake",
+            "transliterate", "nonascii",
+        )]
+        if high:
+            return max(high, key=lambda c: cats[c])
+        return cats.most_common(1)[0][0]
+    # ASCII-only change (punct collapse, noise strip, whitespace) -> low
+    return "punctuation"
+
+
+# Categories that must win primary selection when present (human review required)
+# cjk_punct_repeat before symbol_noise: folding fullwidth brackets also logs
+# symbol_noise, which would otherwise hide the CJK extraction failure.
+_HIGH_PRIMARY = (
+    "replacement", "invalid_utf8", "html_entity", "html_tag",
+    "cjk_punct_repeat", "symbol_noise", "repeated_punct",
+    "transliterate_greek",
+    "empty_garbage",
+)
+
+# Low risk — auto-approved and auto-modified
+_LOW_CATS = (
+    "emoji", "symbol", "punctuation", "accent", "mojibake",
+    "transliterate", "nonascii",
+)
+
+# Edge-only punct strip (..text.. -> text) is safe cleanup, not high risk
+_EDGE_PUNCT = " \t.!?,;:-_~`\"'()[]{}<>…·•"
+
+
+def _is_edge_punct_only(original: str, cleaned: str) -> bool:
+    """True when the only edit is stripping leading/trailing punct/space."""
+    if original == cleaned:
+        return False
+    return original.strip(_EDGE_PUNCT) == cleaned.strip(_EDGE_PUNCT)
+
+
+def _primary_category(counts: dict, original: str, cleaned: str) -> str:
+    """Pick primary category: high-risk first (detected), then mojibake, else max count.
+
+    Detected-but-kept high-risk extraction failures (symbol noise, repeated
+    punctuation, HTML, replacement, CJK punct, empty garbage) still force a
+    high-risk review even when cleaning left them in place.
+    """
+    for cat in _HIGH_PRIMARY:
+        if counts.get(cat):
+            return cat
+    if counts.get("mojibake"):
+        return "mojibake"
+    primary_cat = "other"
+    primary_count = 0
+    for cat, cnt in counts.items():
+        if cat.startswith("protected_"):
+            continue
+        if cnt > primary_count:
+            primary_count = cnt
+            primary_cat = cat
+    if primary_cat == "other":
+        primary_cat = _infer_category(original, cleaned)
+    return primary_cat
 
 
 def scan_all_cells(columns, rows, skip_cols, opts, progress_callback=None) -> ScanResult:
@@ -64,24 +158,48 @@ def scan_all_cells(columns, rows, skip_cols, opts, progress_callback=None) -> Sc
                 clean_cache[v] = outcome
 
             if not outcome.changed:
+                # Extraction errors that cleaning did not rewrite still need
+                # human review (garbage, HTML, symbol noise, ...).
+                extract_cat = next(
+                    (c for c in _HIGH_PRIMARY if outcome.counts.get(c)),
+                    None,
+                )
+                if extract_cat is None:
+                    from backend.core.detect import analyze_text as _at
+                    orig_counts = _at(v, apply_accents=False).counts
+                    extract_cat = next(
+                        (c for c in _HIGH_PRIMARY if orig_counts.get(c)),
+                        None,
+                    )
+                if extract_cat:
+                    result.changed_cells += 1
+                    row_has_error = True
+                    change = CellChange(
+                        row_index=ridx,
+                        col_index=cidx,
+                        column=col,
+                        original=v,
+                        cleaned=v,
+                        category=extract_cat,
+                        risk="high",
+                    )
+                    result.all_changes.append(change)
+                    key = (v, v, extract_cat)
+                    pattern_groups.setdefault(key, []).append(change)
                 continue
 
             result.changed_cells += 1
             row_has_error = True
 
-            # Determine primary category
-            primary_cat = "other"
-            primary_count = 0
-            for cat, cnt in outcome.counts.items():
-                if cat.startswith("protected_"):
-                    continue
-                if cnt > primary_count:
-                    primary_count = cnt
-                    primary_cat = cat
+            # Determine primary category (high-risk wins, mojibake labeled, else max)
+            primary_cat = _primary_category(outcome.counts, v, outcome.cleaned)
 
-            # Risk: emoji/symbol/punctuation/accent/mojibake/transliterate = low (auto-approved);
-            # replacement/invalid_utf8/nonascii/html_entity/html_tag/symbol_noise/cjk_punct_repeat/repeated_punct = high
-            if primary_cat in ("emoji", "symbol", "punctuation", "accent", "mojibake", "transliterate"):
+            # Edge-only punct strip (..text.. -> text) is low, not repeated_punct high
+            if primary_cat in ("repeated_punct", "symbol_noise") and _is_edge_punct_only(v, outcome.cleaned):
+                primary_cat = "punctuation"
+
+            # Risk: low cats auto-approved; everything else high (human review)
+            if primary_cat in _LOW_CATS:
                 risk = "low"
             else:
                 risk = "high"
@@ -102,6 +220,8 @@ def scan_all_cells(columns, rows, skip_cols, opts, progress_callback=None) -> Sc
                 pattern_groups[key] = []
             pattern_groups[key].append(change)
 
+        if row_has_error:
+            result.rows_with_errors += 1
         # Report progress after each row
         if progress_callback:
             progress_callback(ridx + 1)
@@ -119,8 +239,6 @@ def scan_all_cells(columns, rows, skip_cols, opts, progress_callback=None) -> Sc
             result.medium_patterns.append(pattern)
         else:
             result.high_patterns.append(pattern)
-        if risk in ("low", "medium"):
-            result.rows_with_errors += len(changes)
 
     return result
 
@@ -132,7 +250,6 @@ def apply_decisions(rows, scan_result, progress_callback=None):
     """
     cleaned_rows = [list(r) for r in rows]
     changed_cells = 0
-    rows_with_errors = 0
 
     for pattern in scan_result.low_patterns + scan_result.medium_patterns + scan_result.high_patterns:
         if pattern.user_decision != "approve":
@@ -143,13 +260,10 @@ def apply_decisions(rows, scan_result, progress_callback=None):
             cleaned_rows[ridx][cidx] = dst
             changed_cells += 1
 
-    # Count rows with errors
-    for ridx, row in enumerate(cleaned_rows):
-        for cidx, val in enumerate(row):
-            if isinstance(val, str) and val:
-                rows_with_errors += 1
-                break
+    # Per-row progress (drives the CLI bar); the row count reported back is
+    # the scan's issue set so scan/apply/final summaries always agree.
+    for ridx, _row in enumerate(cleaned_rows):
         if progress_callback:
             progress_callback(ridx + 1)
 
-    return cleaned_rows, changed_cells, rows_with_errors
+    return cleaned_rows, changed_cells, scan_result.rows_with_errors
