@@ -172,6 +172,10 @@ def _cell_errors(text: str, column: str, opts: CleanOptions) -> list[str]:
         original = restore_fn(sp.original, pr.table)
         suggested = restore_fn(sp.suggested, pr.table)
         label = _CAT_DISPLAY.get(cat, cat)
+        if (cat == "transliterate_greek" and suggested
+                and ord(suggested[0]) > 127):
+            # Same-script change (έ→ε) is accent folding, not romanization.
+            label = "AccentFold_Greek"
         found.append(f"{label}:{original}→{suggested}")
     seen: set[str] = set()
     uniq: list[str] = []
