@@ -306,9 +306,12 @@ def clean_file(
         td = ingest_mod.ingest(fpath, raw, fmt=None)
 
     # Mode-based preset overrides
-    if mode == "1":  # Safe clean ù strip emoji by default (matches interactive scan)
+    if mode == "1":  # Safe clean — strip emoji by default (matches interactive scan)
         if keep_emoji is None:
             keep_emoji = False
+        # Transliteration is strict-mode only: Mode 1 never romanizes.
+        fold_scripts = False
+        transliterate_columns = set()
     elif mode == "2":  # Strict clean
         fold_accents = True
         fix_mojibake = True
@@ -874,37 +877,9 @@ def clean_file(
                     if _folded and _folded != cache[_k]:
                         cache[_k] = _folded
 
-                # --- FIX: Also fold accents on NON-translated cells ---
-                # Single accented chars (ⁿ, ÷, Θ, ±, Φ) are skipped from translation
-                # (len < 2) but still need accent folding after mojibake repair
-                print()
-                print(c("  Folding accents on remaining cells...", FG_CYAN))
-                fold_count = 0
-                for ridx, row in enumerate(rows):
-                    for cidx in range(len(td.columns)):
-                        if cidx >= len(row) or (cidx + 1) in skip_cols:
-                            continue
-                        v = row[cidx]
-                        if not isinstance(v, str) or not v:
-                            continue
-                        # Skip if already translated (in cache positions)
-                        if v in positions:
-                            continue
-                        # Fold accents
-                        _folded = clean_mod.clean_cell(v, _fold_opts, "").cleaned
-                        if _folded and _folded != v:
-                            row[cidx] = _folded
-                            fold_count += 1
-                            # Add to error column
-                            orig_short = v if len(v) <= 40 else v[:37] + "..."
-                            new_short = _folded if len(_folded) <= 40 else _folded[:37] + "..."
-                            err_cell = row[-1] if row else ""
-                            if isinstance(err_cell, str):
-                                note = f"Translated [{td.columns[cidx]}]: {orig_short} ? {new_short}"
-                                if note not in err_cell:
-                                    row[-1] = (err_cell + "; " if err_cell else "") + note
-                if fold_count > 0:
-                    print(c(f"    Folded accents on {fold_count} cells", FG_GREEN))
+                # Mode 5 = translation only. Cells that were not translated
+                # (single characters, codes, identifiers) are left exactly as
+                # they are — no transliteration, no script folding.
 
             # --- ADVANCED FEATURE: Glossary post-processing ---
             # Restore glossary terms that may have been translated/mangled
@@ -1396,16 +1371,10 @@ def main() -> None:
                 print(c(f"  Unknown language: {ans!r} ù try a code (fr) "
                         f"or a name (French).", FG_RED))
 
-    # Script transliteration: strict mode always does it; safe mode does NOT transliterate
-    fold_scripts = False
-    if mode == "2":
-        fold_scripts = True
-    elif mode == "1":
-        # Mode 1: safe clean — fold_scripts permanently OFF.
-        # Accents may still be folded (fold_accents=True preset), but
-        # non-Latin scripts (Greek/Cyrillic/Armenian) stay as Greek/Cyrillic letters.
-        fold_scripts = False  # permanently off; no prompt
-    # modes 3/4/5: keep original scripts for translation or clean output
+    # Script transliteration is STRICT-MODE ONLY (mode 2).
+    # Modes 1, 3, 4 and 5 never transliterate: scripts stay in their
+    # original alphabet (no β→b, λ→l, П→P, Ա→A).
+    fold_scripts = (mode == "2")
 
     # Emoji handling: ask for modes that keep emojis by default
     keep_emoji_setting: bool | None = None  # None = use mode default
@@ -1739,7 +1708,7 @@ def main() -> None:
                 fold_symbols=True,
                 collapse_punctuation=True,
                 keep_emoji=False,
-                fold_scripts=fold_scripts,
+                fold_scripts=(mode == "2"),  # strict mode only; Mode 1 never romanizes
                 transliterate_columns=set(td.columns) if mode == "2" else set(),
                 enrich=enrich_setting,
             )
