@@ -171,19 +171,27 @@ def _fold_char(c, apply_accents, fold_symbols, fold_scripts, keep_emoji,
         if apply_accents or do_translit:
             folded = LATIN_ACCENTS.get(c) or LIGATURES.get(c)
     elif c in TYPOGRAPHIC:
-        if (fold_symbols or do_translit) and not (
-                c in INVISIBLE and not normalize_invisible):
+        # Greek letters in TYPOGRAPHIC are lookalike transliterations; fold
+        # them only when transliteration is requested (mirrors clean.py).
+        _greek_letter = 0x0370 <= o <= 0x03FF or 0x1F00 <= o <= 0x1FFF
+        if ((fold_symbols or do_translit)
+                and not (c in INVISIBLE and not normalize_invisible)
+                and (not _greek_letter or fold_scripts or do_translit)):
             folded = TYPOGRAPHIC[c]
     elif c in FULLWIDTH:
         if (fold_symbols or do_translit) and not unicodedata.category(c).startswith("L"):
             folded = FULLWIDTH[c]
-    elif c in SCRIPT_TO_LATIN and (
-        fold_scripts or do_translit
-        # Greek + Cyrillic fold under fold_symbols/fold_accents (clean's
-        # 0x0370-0x1FFF gate covers both scripts)
-        or (0x0370 <= o <= 0x1FFF and (fold_symbols or apply_accents))
-    ):
+    elif c in SCRIPT_TO_LATIN and (fold_scripts or do_translit):
         folded = SCRIPT_TO_LATIN[c]
+    elif (
+        (0x0370 <= o <= 0x03FF or 0x1F00 <= o <= 0x1FFF)
+        and (fold_symbols or apply_accents)
+    ):
+        # Greek keeps its alphabet under fold_accents: strip diacritics only
+        # (ά→α), never romanize — mirrors clean.py exactly.
+        base = strip_combining(c)
+        if base and base != c:
+            folded = base
     elif (0xC0 <= o <= 0x24F or 0x1E00 <= o <= 0x1EFF) and (
             apply_accents or do_translit) and unicodedata.category(c).startswith("L"):
         base = strip_combining(c)

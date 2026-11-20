@@ -1,4 +1,4 @@
-﻿"""VModel Terminal CLI — colorful, interactive data cleaner.
+﻿"""VModel Terminal CLI ù colorful, interactive data cleaner.
 
 Run:  py vmodel_cli.py        (or type:  vmodel   after setup)
 """
@@ -39,7 +39,7 @@ RICH_AVAILABLE = False
 # pipeline: chunked DB reads (constant RAM) + parallel clean + sheet rollover.
 STREAM_ROW_THRESHOLD = 100_000
 
-# VModel's own output/annotation columns (from a previous run) — never user
+# VModel's own output/annotation columns (from a previous run) ù never user
 # data: never translated, never flagged as "foreign language" columns.
 VSYSTEM_COLUMNS = frozenset({
     "error_mapped_row_by_row",
@@ -89,7 +89,7 @@ def clear_line() -> None:
 # ----------------------------------------------------------------------------
 # Animations
 # ----------------------------------------------------------------------------
-_SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠶", "⠵", "⠷", "⠻"]
+_SPINNER_FRAMES = ["?", "?", "?", "?", "?", "?", "?", "?", "?", "?"]
 
 
 def spin(seconds: float, msg: str, color: str = FG_CYAN) -> None:
@@ -104,7 +104,7 @@ def spin(seconds: float, msg: str, color: str = FG_CYAN) -> None:
         idx += 1
         time.sleep(0.08)
     clear_line()
-    sys.stdout.write(f"{c('✔', FG_GREEN)} {msg}\n")
+    sys.stdout.write(f"{c('?', FG_GREEN)} {msg}\n")
     sys.stdout.flush()
 
 
@@ -116,16 +116,16 @@ def sweep(seconds: float, msg: str = "Scanning") -> None:
         elapsed = time.time() - (end - seconds)
         pct = min(100, int((elapsed / seconds) * 100))
         filled = int(steps * pct / 100)
-        bar = "█" * filled + "░" * (steps - filled)
+        bar = "ª" * filled + "ª" * (steps - filled)
         clear_line()
         sys.stdout.write(
-            f"{c('⟳', FG_CYAN)} {msg} |{c(bar, FG_BLUE)}| {pct:3d}%"
+            f"{c('?', FG_CYAN)} {msg} |{c(bar, FG_BLUE)}| {pct:3d}%"
         )
         sys.stdout.flush()
         time.sleep(0.05)
     clear_line()
-    bar = "█" * steps
-    sys.stdout.write(f"{c('✔', FG_GREEN)} {msg} |{c(bar, FG_GREEN)}| 100%\n")
+    bar = "ª" * steps
+    sys.stdout.write(f"{c('?', FG_GREEN)} {msg} |{c(bar, FG_GREEN)}| 100%\n")
     sys.stdout.flush()
 
 
@@ -160,12 +160,12 @@ class Progress:
         self._last_pct = pct
         self._last_draw = now
         filled = int(self.width * pct / 100)
-        bar = "█" * filled + "░" * (self.width - filled)
+        bar = "ª" * filled + "ª" * (self.width - filled)
         elapsed = now - self.start
         # Pool workers need a while to boot and caches are cold: an ETA
         # computed from the first few hundred rows is pure noise (it once
         # showed 23h). Only estimate once a meaningful sample exists.
-        eta = "…"
+        eta = "à"
         warm = max(10_000, self.total // 100)
         if self.done >= warm and elapsed > 1.5:
             rate = self.done / elapsed
@@ -175,7 +175,7 @@ class Progress:
             eta = "0:00:00"
         clear_line()
         sys.stdout.write(
-            f"{c('●', FG_CYAN)} {self.label} |{c(bar, FG_GREEN)}| "
+            f"{c('?', FG_CYAN)} {self.label} |{c(bar, FG_GREEN)}| "
             f"{pct:3d}%  {self.done}/{self.total}  ETA {eta}"
         )
         sys.stdout.flush()
@@ -183,7 +183,7 @@ class Progress:
     def finish(self, msg: str = "Done") -> None:
         self.done = self.total
         self._draw()
-        sys.stdout.write(f"  {c('✔', FG_GREEN)} {msg}\n")
+        sys.stdout.write(f"  {c('?', FG_GREEN)} {msg}\n")
         sys.stdout.flush()
 
 
@@ -204,15 +204,20 @@ def header() -> None:
 
 
 def prompt(msg: str, color: str = FG_CYAN) -> str:
-    sys.stdout.write(f"{c('»', color)} {msg} {DIM}")
+    sys.stdout.write(f"{c('╗', color)} {msg} {DIM}")
     sys.stdout.flush()
     line = sys.stdin.readline()
     sys.stdout.write(RESET)
     return line.strip()
 
 
-def yes_no(msg: str, default: bool = True) -> bool:
-    suffix = "Y/n" if default else "y/N"
+def yes_no(msg: str, default: bool = False) -> bool:
+    """Ask user yes/no question.
+    
+    default=False means [n/Y] ù press Enter for No.
+    default=True means [Y/n] ù press Enter for Yes.
+    """
+    suffix = "n/Y" if default is False else "Y/n"
     ans = prompt(f"{msg} [{suffix}] ", FG_YELLOW).strip().lower()
     if not ans:
         return default
@@ -234,17 +239,17 @@ def _parse_extra_cols(answer: str) -> set[int]:
 
 def show_columns(columns: list[str]) -> None:
     print()
-    print(c("┌──────────────────── DETECTED COLUMNS ────────────────────┐", FG_BLUE))
+    print(c("+-------------------- DETECTED COLUMNS --------------------+", FG_BLUE))
     for i, col in enumerate(columns, 1):
         print(
             f"  {c(str(i), FG_YELLOW)}.  {c(col, FG_CYAN)}"
         )
-    print(c("└──────────────────────────────────────────────────────────┘", FG_BLUE))
+    print(c("+----------------------------------------------------------+", FG_BLUE))
     print()
 
 
 # ----------------------------------------------------------------------------
-# Error detection / annotation helpers — implementations live in
+# Error detection / annotation helpers ù implementations live in
 # backend.core.annotate so the streaming pool workers can import them
 # without pulling in the whole CLI module.
 # ----------------------------------------------------------------------------
@@ -292,7 +297,7 @@ def clean_file(
                 table = _tables[0][0]
             else:
                 raise ValueError(
-                    f"Access file has {len(_tables)} tables — pass table=<name> "
+                    f"Access file has {len(_tables)} tables ù pass table=<name> "
                     f"(main() asks the user which one to evaluate)"
                 )
         td = ingest_mod.ingest_access(fpath, table)
@@ -301,7 +306,7 @@ def clean_file(
         td = ingest_mod.ingest(fpath, raw, fmt=None)
 
     # Mode-based preset overrides
-    if mode == "1":  # Safe clean — strip emoji by default (matches interactive scan)
+    if mode == "1":  # Safe clean ù strip emoji by default (matches interactive scan)
         if keep_emoji is None:
             keep_emoji = False
     elif mode == "2":  # Strict clean
@@ -312,7 +317,7 @@ def clean_file(
         collapse_punctuation = True
         if keep_emoji is None:
             keep_emoji = False
-        fold_scripts = True  # β→b, л→l, Ա->A, ل->l (opt-in / strict)
+        fold_scripts = True  # ▀?b, ??l, ?->A, ?->l (opt-in / strict)
         transliterate_columns = set(td.columns)  # transliterate/remove all non-ASCII
     elif mode == "3":  # Clean + Translate (Approach A)
         fold_accents = False  # keep original chars for translation
@@ -326,7 +331,7 @@ def clean_file(
             keep_emoji = True
         fold_scripts = False
         transliterate_columns = set()
-    elif mode == "4":  # Only clean — fix mojibake, keep language/accents
+    elif mode == "4":  # Only clean ù fix mojibake, keep language/accents
         fold_accents = False  # keep original accents
         fix_mojibake = True
         normalize_invisible = True
@@ -336,7 +341,7 @@ def clean_file(
             keep_emoji = True
         fold_scripts = False
         transliterate_columns = set()
-    elif mode == "5":  # Only translate — skip cleaning, just translate
+    elif mode == "5":  # Only translate ù skip cleaning, just translate
         fold_accents = False
         fix_mojibake = False  # skip mojibake repair
         normalize_invisible = False  # skip invisible normalization
@@ -399,8 +404,8 @@ def clean_file(
             if changed:
                 changed_cells += 1
                 row[cidx] = cleaned
-            # For translate modes (3, 5), skip intermediate error notes —
-            # final original → translated will be shown after translation
+            # For translate modes (3, 5), skip intermediate error notes ù
+            # final original ? translated will be shown after translation
             if mode not in ("3", "5"):
                 errs = _cell_errors(v, col, opts)
                 if errs:
@@ -409,7 +414,7 @@ def clean_file(
                 elif changed:
                     orig_short = v if len(v) <= 40 else v[:37] + "..."
                     new_short = cleaned if len(cleaned) <= 40 else cleaned[:37] + "..."
-                    err_parts.append(f"[{col}] {orig_short} → {new_short}")
+                    err_parts.append(f"[{col}] {orig_short} ? {new_short}")
         if err_parts:
             rows_with_errors += 1
         row.append("; ".join(err_parts))
@@ -420,13 +425,13 @@ def clean_file(
     if progress:
         progress.finish()
 
-    # --- Translation mode (3 & 5): auto-detect source → target language ---
+    # --- Translation mode (3 & 5): auto-detect source ? target language ---
     # Backend preference:
-    #   TRANSLATE_BACKEND=edge (default) → Edge/fast HTTP endpoint ONLY
-    #                                      — the local model is NEVER used
+    #   TRANSLATE_BACKEND=edge (default) ? Edge/fast HTTP endpoint ONLY
+    #                                      ù the local model is NEVER used
     #                                      (no silent fallback)
-    #   TRANSLATE_BACKEND=http / auto    → aliases of edge
-    #   TRANSLATE_BACKEND=ai             → local LLM (ollama / llama.cpp),
+    #   TRANSLATE_BACKEND=http / auto    ? aliases of edge
+    #   TRANSLATE_BACKEND=ai             ? local LLM (ollama / llama.cpp),
     #                                      explicit opt-in only
     if mode in ("3", "5"):
         import re as _re
@@ -448,7 +453,7 @@ def clean_file(
         if backend_pref == "ai":
             use_local = bool(ai_ready)
             if use_local and translate_model is None and provider != "llama":
-                # chat_ollama's built-in default may not be installed —
+                # chat_ollama's built-in default may not be installed ù
                 # resolve an actual local model (e.g. gemma4:e2b).
                 try:
                     from backend.ai.ollama_client import get_status as _gs
@@ -461,17 +466,17 @@ def clean_file(
             else:
                 print(c("  ERROR: TRANSLATE_BACKEND=ai but no local AI "
                         "server is available.", FG_RED))
-        else:  # edge (default) — never falls back to the local model
+        else:  # edge (default) ù never falls back to the local model
             try:
                 from backend.ai.edge_translate import is_reachable
                 use_edge = is_reachable(timeout=8)
             except Exception:
                 use_edge = False
             if use_edge:
-                print(c(f"  Translation backend: Edge (fast HTTP) — "
+                print(c(f"  Translation backend: Edge (fast HTTP) ù "
                         f"{len(_LANGUAGES)} languages, parallel", FG_MAGENTA))
             else:
-                print(c("  ERROR: Edge translate endpoint unreachable — "
+                print(c("  ERROR: Edge translate endpoint unreachable ù "
                         "check your internet connection.", FG_RED))
                 print(c("  (Local-model fallback is disabled. Set "
                         "TRANSLATE_BACKEND=ai to use local AI instead.)",
@@ -481,7 +486,7 @@ def clean_file(
         # Terms that should NOT be translated (brand names, technical terms)
         # Built-in defaults for terms Edge commonly mangles:
         glossary: set[str] = {
-            # Indian cities (Edge changes Bengaluru→Bangalore etc.)
+            # Indian cities (Edge changes Bengaluru?Bangalore etc.)
             "Bengaluru", "Mumbai", "Chennai", "Delhi", "Kolkata",
             "Hyderabad", "Pune", "Ahmedabad", "Jaipur", "Lucknow",
             # Business/tax codes
@@ -524,24 +529,24 @@ def clean_file(
         _batch_header = (
             f"You are a professional translator. Translate every <item id=\"N\">...</item> "
             f"segment into {target_name}. Auto-detect the source language of each segment. "
-            f"NEVER leave a segment in its original language — if it is already in {target_name}, "
+            f"NEVER leave a segment in its original language ù if it is already in {target_name}, "
             "output it exactly as-is. "
             "Keep the <item id=\"N\">...</item> tags and their order in your reply, "
-            "one per line, and put ONLY the translation inside each tag — "
+            "one per line, and put ONLY the translation inside each tag ù "
             "no explanations, no quotes:\n\n"
         )
         _single_header = (
             f"Translate the following text into {target_name}. Auto-detect the source language. "
-            f"Never leave the text in its original language — if it is already in {target_name}, "
+            f"Never leave the text in its original language ù if it is already in {target_name}, "
             "return it exactly unchanged. "
-            "Reply ONLY with the translated text — no explanations, no quotes:\n\n"
+            "Reply ONLY with the translated text ù no explanations, no quotes:\n\n"
         )
         _item_re = _re.compile(r"<item\s+id\s*=\s*\"?(\d+)\"?\s*>\s*(.*?)\s*</item>", _re.S)
         _letter_re = _re.compile(r"[^\W\d_]")  # any Unicode letter
         _skip_names = {"id", "url", "published date", "sentiment",
                        *VSYSTEM_COLUMNS}
 
-        # --- ADVANCED: Smart pattern detection — skip cells that shouldn't be translated ---
+        # --- ADVANCED: Smart pattern detection ù skip cells that shouldn't be translated ---
         # Company/HR abbreviations and version-like codes (EE.RR., LL.M.,
         # NEXT.JS, MT.PA, ...) are stripped before code-pattern checks so
         # they are still translated instead of skipped as identifiers.
@@ -549,7 +554,7 @@ def clean_file(
         _CODE_PATTERNS = [
             # Financial codes, tax IDs, business identifiers
             _re.compile(r"^(CIN|EIN|GSTIN|VAT|PAN|IFSC|SWIFT|IBAN|DUNS|LEI|ACT|TIN|SSN|Aadhaar|Passport|Driving)\s*:", _re.I),
-            # Stock symbols (BRK.B, AAPL.US) — 2+ chars before the dot so
+            # Stock symbols (BRK.B, AAPL.US) ù 2+ chars before the dot so
             # company suffixes like "S.A." / "S.A.S" are NOT skipped.
             _re.compile(r"\b[A-Z]{2,5}\.[A-Z]{1,2}\b"),
             # Financial codes with prefix (Stock Symbol: BRK.B, CIN: U72900...)
@@ -579,14 +584,14 @@ def clean_file(
             # MAC address
             _re.compile(r"^([0-9A-F]{2}[:-]){5}([0-9A-F]{2})$", _re.I),
             # Pure numbers with units
-            _re.compile(r"^[\d\s,.\-+/%°²³€£¥₹$]+\s*(kg|g|mg|km|m|cm|mm|µm|nm|kW|V|Hz|GB|MB|TB|Mbps|°C|°F|%)$", _re.I),
+            _re.compile(r"^[\d\s,.\-+/%░▓│ÇúÑ?$]+\s*(kg|g|mg|km|m|cm|mm|╡m|nm|kW|V|Hz|GB|MB|TB|Mbps|░C|░F|%)$", _re.I),
             # Version numbers
             _re.compile(r"^v?\d+\.\d+(\.\d+)*$", _re.I),
             # Dates
             _re.compile(r"^\d{4}-\d{2}-\d{2}"),
             _re.compile(r"^\d{2}:\d{2}:\d{2}"),
             # Place names that Edge mangles (Indian cities, etc.)
-            # NOTE: Bangalore intentionally NOT skipped — it is the mangled form
+            # NOTE: Bangalore intentionally NOT skipped ù it is the mangled form
             # and must flow through cache so glossary _edge_fixes can restore
             # Bengaluru. Correct spellings (Bengaluru, Mumbai, ...) are skipped.
             _re.compile(r"^(Bengaluru|Mumbai|Chennai|Delhi|Kolkata|Hyderabad|Pune)\b", _re.I),
@@ -631,9 +636,9 @@ def clean_file(
                     continue
                 if not _letter_re.search(v):  # numbers / dates / emoji only
                     continue
-                if len(v.strip()) < 4:  # skip single/short characters (codes, fragments)
+                if len(v.strip()) < 2:  # skip single characters only (codes handled below)
                     continue
-                # --- ADVANCED: Smart skip — codes, identifiers, structured data ---
+                # --- ADVANCED: Smart skip ù codes, identifiers, structured data ---
                 if _should_skip_translation(v):
                     skipped_codes += 1
                     continue
@@ -669,7 +674,7 @@ def clean_file(
                     non_ascii = sum(1 for s in samples if any(ord(ch) > 127 for ch in s))
                     col_name = td.columns[cidx] if cidx < len(td.columns) else f"Col{cidx}"
                     if non_ascii > 0:
-                        print(c(f"    • {col_name}: {len(positions)} unique texts, "
+                        print(c(f"    ò {col_name}: {len(positions)} unique texts, "
                                 f"{non_ascii}/{len(samples)} samples non-ASCII",
                                 FG_GREEN))
             except Exception:
@@ -677,7 +682,7 @@ def clean_file(
 
         # --- ADVANCED FEATURE: Preview translations before full run ---
         if unique_order and not (use_edge or use_local):
-            print(c("  No translation backend available — keeping original text.",
+            print(c("  No translation backend available ù keeping original text.",
                     FG_YELLOW))
         if unique_order and (use_edge or use_local):
             n_cells = sum(len(p) for p in positions.values())
@@ -690,7 +695,7 @@ def clean_file(
             if preview_count > 0 and len(unique_order) > preview_count:
                 print()
                 print(c("  Preview (first 5 texts):", FG_YELLOW, BOLD))
-                print(c("  " + "─" * 60, FG_DIM))
+                print(c("  " + "-" * 60, FG_DIM))
 
                 # Quick preview translation
                 preview_texts = unique_order[:preview_count]
@@ -704,11 +709,11 @@ def clean_file(
                             orig_disp = orig if len(orig) <= 35 else orig[:32] + "..."
                             tr_disp = tr if len(tr) <= 35 else tr[:32] + "..."
                             print(c(f"    {orig_disp}", FG_WHITE))
-                            print(c(f"    → {tr_disp}", FG_GREEN))
+                            print(c(f"    ? {tr_disp}", FG_GREEN))
                             print()
                     except Exception:
                         pass
-                print(c("  " + "─" * 60, FG_DIM))
+                print(c("  " + "-" * 60, FG_DIM))
 
                 # Ask user to confirm
                 if not yes_no("Proceed with full translation?", default=True):
@@ -807,6 +812,20 @@ def clean_file(
 
             tr_progress.finish(f"{len(cache)} texts translated")
 
+            # Exact-word sense fixes: for a standalone word Google's dictionary
+            # sometimes returns a secondary sense (Russian "друг" -> "another",
+            # while "мой друг" -> "my friend"). Only whole-cell matches are
+            # rewritten, so normal sentences are untouched.
+            if target_lang == "en" and cache:
+                _exact_word_fixes = {
+                    "друг": "friend",
+                    "друзья": "friends",
+                }
+                for _k in list(cache):
+                    _fix = _exact_word_fixes.get((_k or "").strip().lower())
+                    if _fix:
+                        cache[_k] = _fix
+
             # --- ADVANCED FEATURE: Multi-pass validation ---
             # Check if any translated text still contains non-English patterns
             # and re-translate those (only meaningful when target IS English)
@@ -814,8 +833,7 @@ def clean_file(
                 print()
                 print(c("  Validating translations...", FG_CYAN))
                 _non_english = _re.compile(
-                    r"[àáâãäåèéêëìíîïòóôõöùúûüýÿñçßœæÀÁÂÃÄÅÈÉÊËÌÍÎÏÒÓÔÕÖÙÚÛÜÝŸÑÇ"
-                    r"ąćęłńóśźżĄĆĘŁŃÓŚŹŻа-яА-Яα-ωΑ-Ω぀-ゟ゠-ヿ一-鿿가-힯]"
+                    r"[αßΓπΣσΦΘΩδ∞φε∩≥≤⌠⌡÷∙·√ⁿ² ±τ▀£µ└┴┬├─┼╚╔╩╦╠═╬╧╥╙╘╒╓┘┌█▄▌ƒ╤╟]"
                 )
                 suspect_texts = [
                     t for t in cache
@@ -823,7 +841,7 @@ def clean_file(
                 ]
                 if suspect_texts:
                     print(c(f"    {len(suspect_texts)} texts may still be "
-                            f"non-English — re-translating...", FG_YELLOW))
+                            f"non-English ù re-translating...", FG_YELLOW))
                     try:
                         retry_results = translate_batch(
                             suspect_texts, source="", target="en"
@@ -839,7 +857,7 @@ def clean_file(
             # must be preserved.
             if target_lang == "en":
                 # Strategy A: fold accents on translated English output so the
-                # final column is ASCII-clean (café -> cafe) while the translator
+                # final column is ASCII-clean (cafΘ -> cafe) while the translator
                 # still received accented input for best language detection.
                 _fold_opts = clean_mod.CleanOptions(
                     fix_mojibake=False,
@@ -857,8 +875,8 @@ def clean_file(
                         cache[_k] = _folded
 
                 # --- FIX: Also fold accents on NON-translated cells ---
-                # Single accented chars (ü, ö, é, ñ, è) are skipped from translation
-                # (len < 4) but still need accent folding after mojibake repair
+                # Single accented chars (ⁿ, ÷, Θ, ±, Φ) are skipped from translation
+                # (len < 2) but still need accent folding after mojibake repair
                 print()
                 print(c("  Folding accents on remaining cells...", FG_CYAN))
                 fold_count = 0
@@ -882,7 +900,7 @@ def clean_file(
                             new_short = _folded if len(_folded) <= 40 else _folded[:37] + "..."
                             err_cell = row[-1] if row else ""
                             if isinstance(err_cell, str):
-                                note = f"Translated [{td.columns[cidx]}]: {orig_short} → {new_short}"
+                                note = f"Translated [{td.columns[cidx]}]: {orig_short} ? {new_short}"
                                 if note not in err_cell:
                                     row[-1] = (err_cell + "; " if err_cell else "") + note
                 if fold_count > 0:
@@ -924,7 +942,7 @@ def clean_file(
             total_chars = sum(len(k) for k in cache)
 
             print()
-            print(c("  ── Translation Statistics ──", FG_CYAN, BOLD))
+            print(c("  -- Translation Statistics --", FG_CYAN, BOLD))
             print(c(f"    Unique texts processed : {len(cache)}", FG_WHITE))
             print(c(f"    Successfully translated: {translated_ok}", FG_GREEN))
             print(c(f"    Failed / unchanged     : {failed}", FG_YELLOW if failed else FG_GREEN))
@@ -934,7 +952,7 @@ def clean_file(
             if translation_time > 0:
                 print(c(f"    Speed                  : {len(cache)/translation_time:.1f} texts/sec", FG_WHITE))
 
-            # write back, count changes, annotate with original → final translated
+            # write back, count changes, annotate with original ? final translated
             t_rows: set[int] = set()
             for text, cells in positions.items():
                 tr = cache.get(text, text)
@@ -953,7 +971,7 @@ def clean_file(
                     new_short = tr if len(tr) <= 40 else tr[:37] + "..."
                     err_cell = rows[ridx][-1] if rows[ridx] else ""
                     if isinstance(err_cell, str):
-                        note = f"Translated [{td.columns[cidx]}]: {orig_short} → {new_short}"
+                        note = f"Translated [{td.columns[cidx]}]: {orig_short} ? {new_short}"
                         if note not in err_cell:
                             rows[ridx][-1] = (err_cell + "; " if err_cell else "") + note
             if t_rows:
@@ -963,7 +981,7 @@ def clean_file(
                 )
 
     # --- Build output with cleaned-data-only column naming ---
-    # Skipped columns → _not_clean, processed columns → _cleaned
+    # Skipped columns ? _not_clean, processed columns ? _cleaned
     out_columns: list[str] = []
     for i, col in enumerate(td.columns):
         suffix = "_not_clean" if (i + 1) in skip_cols else "_cleaned"
@@ -991,7 +1009,7 @@ def clean_file(
         out_row.append(err_cell if isinstance(err_cell, str) else "")
         # High risk cleaned flag
         out_row.append("yes" if ridx in changed_rows else "no")
-        # Before after column — show only the changed portion (diff context),
+        # Before after column ù show only the changed portion (diff context),
         # not the full long cell text
         ba_parts: list[str] = []
         for cidx in range(len(td.columns)):
@@ -1056,9 +1074,9 @@ def clean_file_review_mode(
     columns.append("VModel_Errors")
 
     print()
-    print(c("═════════════════════════════════════════════════════", FG_MAGENTA))
-    print(c("  TIER 1 — HEURISTIC SCAN (all rows, no LLM per cell)", FG_CYAN, BOLD))
-    print(c("═════════════════════════════════════════════════════", FG_MAGENTA))
+    print(c("-----------------------------------------------------", FG_MAGENTA))
+    print(c("  TIER 1 ù HEURISTIC SCAN (all rows, no LLM per cell)", FG_CYAN, BOLD))
+    print(c("-----------------------------------------------------", FG_MAGENTA))
 
     progress = Progress(total=len(td.rows), label="Scanning rows")
     scan_result = fast_scan_mod.scan_all_cells(
@@ -1085,7 +1103,7 @@ def clean_file_review_mode(
         if p.category in _extract_cats:
             _extract_hits[p.category] = _extract_hits.get(p.category, 0) + p.total_count
     if _extract_hits:
-        print(c("  EXTRACTION ERRORS (high risk — approve to modify):", FG_RED, BOLD))
+        print(c("  EXTRACTION ERRORS (high risk ù approve to modify):", FG_RED, BOLD))
         for cat, n in sorted(_extract_hits.items(), key=lambda x: -x[1]):
             label = _CAT_DISPLAY.get(cat, cat)
             print(c(f"    {label:<22} {n:>6} cell(s)", FG_RED))
@@ -1099,9 +1117,9 @@ def clean_file_review_mode(
 
     # Tier 2: LLM review + user decision for each high-risk pattern, one by one
     if scan_result.high_patterns:
-        print(c("═════════════════════════════════════════════════════", FG_MAGENTA))
-        print(c("  TIER 2 — LLM HIGH-RISK REVIEW (one-by-one)", FG_CYAN, BOLD))
-        print(c("═════════════════════════════════════════════════════", FG_MAGENTA))
+        print(c("-----------------------------------------------------", FG_MAGENTA))
+        print(c("  TIER 2 ù LLM HIGH-RISK REVIEW (one-by-one)", FG_CYAN, BOLD))
+        print(c("-----------------------------------------------------", FG_MAGENTA))
         print()
         print(c(f"  Using offline model: {llm_model}", DIM))
         print(c("  You decide per pattern: (a)pprove / (r)eject / (m)odify / (s)kip", FG_DIM))
@@ -1142,7 +1160,7 @@ def clean_file_review_mode(
                 print(c(f"    Affects  : {pattern.total_count} cell(s)", FG_CYAN))
                 print(f"    Example  : {diff}")
                 print(c(f"    Heuristic: {pattern.reason}", FG_DIM))
-                print(c(f"    LLM says : {llm_risk} — {llm_reason}", FG_YELLOW, BOLD))
+                print(c(f"    LLM says : {llm_risk} ù {llm_reason}", FG_YELLOW, BOLD))
 
                 while True:
                     ans = prompt(
@@ -1178,7 +1196,7 @@ def clean_file_review_mode(
                         print(c("      Invalid choice. Use a/r/m/s/c.", FG_RED))
 
     else:
-        print(c("  No high-risk patterns — all changes are low/medium risk.", FG_GREEN))
+        print(c("  No high-risk patterns ù all changes are low/medium risk.", FG_GREEN))
         print()
 
     # Apply decisions
@@ -1191,7 +1209,7 @@ def clean_file_review_mode(
     )
     progress.finish(f"{changed_cells} cells updated")
 
-    # Add error column — detected on ORIGINAL values, annotated ✓fixed/✗kept
+    # Add error column ù detected on ORIGINAL values, annotated ?fixed/?kept
     for ridx, row in enumerate(cleaned_rows):
         err_parts: list[str] = []
         orig_row = original_rows[ridx] if ridx < len(original_rows) else []
@@ -1220,13 +1238,13 @@ def clean_file_review_mode(
     Path(out_path).write_bytes(res.data)
 
     print()
-    print(c("═════════════════════════════════════════════════════", FG_MAGENTA))
+    print(c("-----------------------------------------------------", FG_MAGENTA))
     print(c("  CLEANING COMPLETE", FG_GREEN, BOLD))
     print(c(f"  Output file : {out_path}", FG_CYAN))
     print(c(f"  Rows        : {len(cleaned_rows)}", FG_CYAN))
     print(c(f"  Cells changed: {changed_cells}", FG_CYAN))
     print(c(f"  Rows w/ errors: {rows_with_errors}", FG_CYAN))
-    print(c("═════════════════════════════════════════════════════", FG_MAGENTA))
+    print(c("-----------------------------------------------------", FG_MAGENTA))
     print()
 
     return out_path
@@ -1237,7 +1255,7 @@ def clean_file_review_mode(
 def main() -> None:
     header()
 
-    # Local AI state — populated only when a mode actually needs it
+    # Local AI state ù populated only when a mode actually needs it
     # (cleaning modes 1/2/4, or explicit TRANSLATE_BACKEND=ai). Translate
     # modes with the Edge backend never check or boot the local model.
     ai_ready = False
@@ -1250,19 +1268,19 @@ def main() -> None:
     else:
         print()
         print(c("  Choose cleaning mode:", FG_CYAN, BOLD))
-        print(c("    1. Safe clean        — fix mojibake, accents→base, strip emojis; keep CJK/structure", FG_GREEN))
-        print(c("    2. Strict clean      — strip all accents, emojis, non-ASCII, invisible; keep emails/URLs/numbers", FG_RED))
-        print(c("    3. Clean + Translate — fix mojibake → translate to your target language (262 supported) → fold accents (Approach A)", FG_MAGENTA))
-        print(c("    4. Only clean        — fix mojibake only; keep original language & accents", FG_CYAN))
-        print(c("    5. Only translate    — translate to your target language only; skip cleaning", FG_BLUE))
+        print(c("    1. Safe clean        ù fix mojibake, accents?base, strip emojis; keep CJK/structure", FG_GREEN))
+        print(c("    2. Strict clean      ù strip all accents, emojis, non-ASCII, invisible; keep emails/URLs/numbers", FG_RED))
+        print(c("    3. Clean + Translate ù fix mojibake ? translate to your target language (262 supported) ? fold accents (Approach A)", FG_MAGENTA))
+        print(c("    4. Only clean        ù fix mojibake only; keep original language & accents", FG_CYAN))
+        print(c("    5. Only translate    ù translate to your target language only; skip cleaning", FG_BLUE))
         print()
         mode = prompt("  Enter 1/2/3/4/5: ", FG_YELLOW).strip()
     
     if mode not in ("1", "2", "3", "4", "5"):
         if RICH_AVAILABLE:
-            ui.print_warning("Invalid choice — defaulting to Safe clean.")
+            ui.print_warning("Invalid choice ù defaulting to Safe clean.")
         else:
-            print(c("  Invalid choice — defaulting to Safe clean.", FG_YELLOW))
+            print(c("  Invalid choice ù defaulting to Safe clean.", FG_YELLOW))
         mode = "1"
 
     # Translation backend preference (normalized once)
@@ -1308,7 +1326,7 @@ def main() -> None:
                 if ai_ready:
                     print(c(f"  Local AI ready (Ollama: {_st.offline_model}).", FG_GREEN))
                 else:
-                    print(c("  No local AI server — heuristics + fast clean only.", FG_YELLOW))
+                    print(c("  No local AI server ù heuristics + fast clean only.", FG_YELLOW))
         # Store provider for risk review
         if ai_provider_used:
             os.environ["AI_PROVIDER_RESOLVED"] = ai_provider_used
@@ -1316,7 +1334,7 @@ def main() -> None:
     if mode in ("3", "5"):
         # Translation uses Edge/fast HTTP ONLY (local model only when
         # TRANSLATE_BACKEND=ai). Probe it upfront so we fail fast instead
-        # of discovering it later — and never silently use the local model.
+        # of discovering it later ù and never silently use the local model.
         if _tr_pref == "ai":
             if not ai_ready:
                 print(c("  WARNING: TRANSLATE_BACKEND=ai but no local AI server.", FG_RED))
@@ -1330,7 +1348,7 @@ def main() -> None:
             except Exception:
                 pass
             if not _edge_ok:
-                print(c("  WARNING: Edge translate endpoint unreachable — "
+                print(c("  WARNING: Edge translate endpoint unreachable ù "
                         "check your internet connection (or wait a moment "
                         "if rate-limited).", FG_RED))
                 print(c("           Falling back to Safe clean "
@@ -1343,7 +1361,7 @@ def main() -> None:
     if mode in ("3", "5"):
         from backend.ai.languages import LANGUAGES as _ALL_LANGS, resolve_language
         print()
-        print(c(f"  Translation: {_ALL_LANGS['en']} → your target language "
+        print(c(f"  Translation: {_ALL_LANGS['en']} ? your target language "
                 f"({len(_ALL_LANGS)} supported, source auto-detected)", FG_CYAN))
         _env_target = (os.environ.get("TRANSLATE_TARGET") or "").strip()
         if _env_target:
@@ -1353,7 +1371,7 @@ def main() -> None:
                 print(c(f"  Target language (TRANSLATE_TARGET): "
                         f"{_res[1]} ({_res[0]})", FG_GREEN))
             else:
-                print(c(f"  TRANSLATE_TARGET={_env_target!r} unknown — using English.",
+                print(c(f"  TRANSLATE_TARGET={_env_target!r} unknown ù using English.",
                         FG_YELLOW))
         else:
             while True:
@@ -1375,21 +1393,18 @@ def main() -> None:
                     print(c(f"  Target language: {_res[1]} ({_res[0]})",
                             FG_GREEN))
                     break
-                print(c(f"  Unknown language: {ans!r} — try a code (fr) "
+                print(c(f"  Unknown language: {ans!r} ù try a code (fr) "
                         f"or a name (French).", FG_RED))
 
-    # Script transliteration: strict mode always does it; safe mode asks.
+    # Script transliteration: strict mode always does it; safe mode does NOT transliterate
     fold_scripts = False
     if mode == "2":
         fold_scripts = True
     elif mode == "1":
-        print()
-        if yes_no(
-            "Transliterate non-Latin scripts to English letters "
-            "(β→b, л→l, Ա→A, ل->l, ∂→d)?",
-            default=True,
-        ):
-            fold_scripts = True
+        # Mode 1: safe clean — fold_scripts permanently OFF.
+        # Accents may still be folded (fold_accents=True preset), but
+        # non-Latin scripts (Greek/Cyrillic/Armenian) stay as Greek/Cyrillic letters.
+        fold_scripts = False  # permanently off; no prompt
     # modes 3/4/5: keep original scripts for translation or clean output
 
     # Emoji handling: ask for modes that keep emojis by default
@@ -1419,7 +1434,7 @@ def main() -> None:
                 else "built-in fallback")
         print(c(f"  Enrichment: on ({_eng})", FG_GREEN))
 
-    # Extra output columns (modes using the common scan→apply→build path)
+    # Extra output columns (modes using the common scan?apply?build path)
     extra_cols: set[int] = {1, 2, 3}
     if mode in ("1", "2", "4", "5"):
         print()
@@ -1455,9 +1470,9 @@ def main() -> None:
                 fpath = prompt("Enter input file path (Excel / CSV / TXT / JSON / ACCDB):", FG_CYAN).strip().strip('"')
             if not fpath:
                 if RICH_AVAILABLE:
-                    ui.print_error("No path given — try again.")
+                    ui.print_error("No path given ù try again.")
                 else:
-                    print(c("  No path given — try again.", FG_RED))
+                    print(c("  No path given ù try again.", FG_RED))
                 continue
             p = Path(fpath)
             if not p.exists():
@@ -1477,7 +1492,7 @@ def main() -> None:
                     f"(VMODEL_OUTPUT_FORMAT)", FG_DIM))
         else:
             _fmt_ans = prompt(
-                "Output format — 1) XLSX (default)  2) CSV:",
+                "Output format ù 1) XLSX (default)  2) CSV:",
                 FG_CYAN,
             ).strip().lower()
             out_format = "csv" if _fmt_ans in ("2", "csv") else "xlsx"
@@ -1518,7 +1533,7 @@ def main() -> None:
                 print(c(f"  Enter a number 1-{len(tables)}.", FG_RED))
             row_count = dict(tables).get(accdb_table, 0)
             if row_count > STREAM_ROW_THRESHOLD and mode in ("1", "2", "4", "5"):
-                # Very large table: do NOT load it — stream it in chunks
+                # Very large table: do NOT load it ù stream it in chunks
                 # (two passes: scan, then apply) with parallel cleaning.
                 streaming = True
                 stream_total = row_count
@@ -1529,7 +1544,7 @@ def main() -> None:
                 except Exception as e:
                     print(c(f"  Failed to read table '{accdb_table}': {e}", FG_RED))
                     return
-                print(c(f"  Large table ({row_count:,} rows) — streaming mode:", FG_GREEN))
+                print(c(f"  Large table ({row_count:,} rows) ù streaming mode:", FG_GREEN))
                 print(c("  chunked reads (constant memory) + parallel clean", FG_GREEN))
             else:
                 try:
@@ -1576,11 +1591,11 @@ def main() -> None:
         # Initialize skip_cols before auto-detection
         skip_cols: set[int] = set()
 
-        # 4b. Auto-detect foreign language columns (translate modes) —
+        # 4b. Auto-detect foreign language columns (translate modes) ù
         # INFORMATIONAL ONLY: modes 3/5 always process ALL data columns
         # (the translator leaves English text unchanged and converts every
         # other language to the target). System annotation columns are
-        # excluded — they are never user data.
+        # excluded ù they are never user data.
         foreign_cols: list[int] = []  # 1-based column numbers
         if mode in ("3", "5"):
             import re as _dre
@@ -1594,7 +1609,7 @@ def main() -> None:
                 if cidx + 1 in skip_cols:
                     continue
                 if col.strip().lower() in VSYSTEM_COLUMNS:
-                    continue  # annotation column — not user data
+                    continue  # annotation column ù not user data
                 col_text = []
                 for r in rows[:100]:  # sample first 100 rows
                     if cidx < len(r) and isinstance(r[cidx], str) and r[cidx].strip():
@@ -1612,14 +1627,14 @@ def main() -> None:
                 if ratio > 0.2 and is_texty:  # >20% rows have non-ASCII
                     foreign_cols.append(cidx + 1)
                     lang_hint = " mojibake/accents" if ratio > 0.5 else ""
-                    print(c(f"    ✓ {col} (#{cidx+1}) — {ratio:.0%} non-ASCII{lang_hint}",
+                    print(c(f"    ? {col} (#{cidx+1}) ù {ratio:.0%} non-ASCII{lang_hint}",
                             FG_GREEN))
             if foreign_cols:
                 print(c(f"  Found {len(foreign_cols)} column(s) with foreign text "
-                        f"(hint only — ALL columns are still processed).",
+                        f"(hint only ù ALL columns are still processed).",
                         FG_GREEN))
             else:
-                print(c("  No foreign columns detected — will process all text.",
+                print(c("  No foreign columns detected ù will process all text.",
                         FG_YELLOW))
 
         # 5. ask which columns to skip
@@ -1632,7 +1647,7 @@ def main() -> None:
             skip_input = prompt(
                 "Enter column NUMBERS to SKIP (comma-separated). "
                 "Leave empty to process ALL columns "
-                "(English stays, other languages → target):",
+                "(English stays, other languages ? target):",
                 FG_YELLOW,
             ).strip()
         else:
@@ -1651,7 +1666,7 @@ def main() -> None:
                 skipped_names = [td.columns[i - 1] for i in sorted(skip_cols)]
                 print(c(f"  Will skip: {', '.join(skipped_names)}", FG_YELLOW))
             else:
-                print(c("  No valid columns to skip — processing all.", FG_DIM))
+                print(c("  No valid columns to skip ù processing all.", FG_DIM))
         if mode in ("3", "5"):
             # Always auto-skip VModel system/annotation columns
             _sys_cols = {
@@ -1680,7 +1695,7 @@ def main() -> None:
         print(c(f"  Mode: {mode_labels.get(mode, mode)}", FG_CYAN))
 
         if mode in ("3", "5"):
-            # Translation modes — run clean_file (translation happens inside;
+            # Translation modes ù run clean_file (translation happens inside;
             # mode 5's preset disables every cleaning step, so it only translates)
             print()
             if not yes_no("Run translation now?", default=True):
@@ -1702,15 +1717,15 @@ def main() -> None:
                 out_format=out_format,
             )
             print()
-            print(c("═════════════════════════════════════════════════════", FG_MAGENTA))
+            print(c("-----------------------------------------------------", FG_MAGENTA))
             print(c("  TRANSLATION COMPLETE", FG_GREEN, BOLD))
             print(c(f"  Output file : {out_path}", FG_CYAN))
             print(c(f"  Cells changed: {changed}", FG_CYAN))
             print(c(f"  Rows w/ errors: {err_rows}", FG_CYAN))
-            print(c("═════════════════════════════════════════════════════", FG_MAGENTA))
+            print(c("-----------------------------------------------------", FG_MAGENTA))
             print()
         else:
-            # Modes 1 & 2: two-tier scan → AI pre-filter → high-risk review → apply
+            # Modes 1 & 2: two-tier scan ? AI pre-filter ? high-risk review ? apply
             print()
             if not yes_no("Scan all cells for cleaning patterns now?", default=True):
                 print(c("  Aborted by user.", FG_RED))
@@ -1729,7 +1744,7 @@ def main() -> None:
                 enrich=enrich_setting,
             )
             if streaming:
-                # pass 1 — streamed, parallel scan (same ScanResult the
+                # pass 1 ù streamed, parallel scan (same ScanResult the
                 # review UI below already consumes)
                 progress = Progress(total=stream_total, label="Scanning cells")
                 scan_pool = stream_mod.make_scan_pool(opts, td.columns, skip_cols)
@@ -1766,13 +1781,13 @@ def main() -> None:
                 if p.category in _extract_cats:
                     _extract_hits[p.category] = _extract_hits.get(p.category, 0) + p.total_count
             if _extract_hits:
-                print(c("  EXTRACTION ERRORS (high risk — approve to modify):", FG_RED, BOLD))
+                print(c("  EXTRACTION ERRORS (high risk ù approve to modify):", FG_RED, BOLD))
                 for cat, n in sorted(_extract_hits.items(), key=lambda x: -x[1]):
                     label = _CAT_DISPLAY.get(cat, cat)
                     print(c(f"    {label:<22} {n:>6} cell(s)", FG_RED))
                 print()
 
-            # Optional AI pre-filter — reduces high-risk patterns by classifying
+            # Optional AI pre-filter ù reduces high-risk patterns by classifying
             # which are truly destructive vs. safe auto-approvable accents/mojibake/emoji
             if ai_ready and scan_result.high_patterns:
                 print()
@@ -1795,16 +1810,16 @@ def main() -> None:
                         for pattern in scan_result.low_patterns:
                             pattern.user_decision = "approve"
                     except Exception as e:
-                        print(c(f"  AI pre-filter skipped ({e}) — using heuristics only", FG_YELLOW))
+                        print(c(f"  AI pre-filter skipped ({e}) ù using heuristics only", FG_YELLOW))
                 else:
-                    print(c("  Skipping AI pre-filter — showing all heuristic high-risk patterns (fast)", FG_DIM))
+                    print(c("  Skipping AI pre-filter ù showing all heuristic high-risk patterns (fast)", FG_DIM))
             print()
 
             if scan_result.high_patterns:
                 print()
-                print(c("═════════════════════════════════════════════════════", FG_MAGENTA))
+                print(c("-----------------------------------------------------", FG_MAGENTA))
                 print(c("  HIGH-RISK PATTERNS (needs your approval)", FG_RED, BOLD))
-                print(c("═════════════════════════════════════════════════════", FG_MAGENTA))
+                print(c("-----------------------------------------------------", FG_MAGENTA))
                 print(c("  You decide per pattern: (a)pprove / (r)eject / (m)odify ALL / (s)kip / (c)custom ALL", FG_YELLOW))
 
                 # Bulk decision option
@@ -1879,7 +1894,7 @@ def main() -> None:
                         if break_outer:
                             break
             else:
-                print(c("  No high-risk patterns — all changes are low/medium risk.", FG_GREEN))
+                print(c("  No high-risk patterns ù all changes are low/medium risk.", FG_GREEN))
                 print()
 
             # Auto-approve low and medium patterns
@@ -1895,7 +1910,7 @@ def main() -> None:
                 return
 
             print()
-            # Output layout + naming — built before the branch so streaming
+            # Output layout + naming ù built before the branch so streaming
             # and in-memory paths write identical files.
             src_path = Path(fpath)
             _fmt = "csv" if (out_format or "").lower() == "csv" else "xlsx"
@@ -1912,7 +1927,7 @@ def main() -> None:
                 out_columns.append("before after")
 
             if streaming:
-                # pass 2 — streamed, parallel apply; each finished row goes
+                # pass 2 ù streamed, parallel apply; each finished row goes
                 # straight to a write-only xlsx (sheet rollover above Excel's
                 # 1,048,576-row limit), so RAM stays flat end to end.
                 print()
@@ -1923,7 +1938,7 @@ def main() -> None:
                 high_srcs = stream_mod.build_high_srcs(scan_result)
                 err_rows = scan_result.rows_with_errors
                 # Review data (millions of patterns on 10M-row tables) is no
-                # longer needed — free it before the apply pass starts.
+                # longer needed ù free it before the apply pass starts.
                 del scan_result
                 gc.collect()
                 apply_pool = stream_mod.make_apply_pool(
@@ -2001,9 +2016,9 @@ def main() -> None:
                         progress.update(ridx + 1)
                     progress.finish(f"{len(cleaned_rows):,} rows annotated")
                 else:
-                    print(c("  Error-mapping column not selected — skipping annotation.", FG_DIM))
+                    print(c("  Error-mapping column not selected ù skipping annotation.", FG_DIM))
 
-                # Optional sentence case — after annotation so error notes still
+                # Optional sentence case ù after annotation so error notes still
                 # reflect cleaning only; before build so output + "before after"
                 # columns show the final values.
                 sentence_case_cells = 0
@@ -2085,7 +2100,7 @@ def main() -> None:
                 rows_out = len(cleaned_rows)
 
             print()
-            print(c("═════════════════════════════════════════════════════", FG_MAGENTA))
+            print(c("-----------------------------------------------------", FG_MAGENTA))
             print(c("  CLEANING COMPLETE", FG_GREEN, BOLD))
             print(c(f"  Output file : {out_path}", FG_CYAN))
             print(c(f"  Rows        : {rows_out:,}", FG_CYAN))
@@ -2093,7 +2108,7 @@ def main() -> None:
             print(c(f"  Rows w/ errors: {err_rows}", FG_CYAN))
             if sentence_case_setting:
                 print(c(f"  Sentence case cells: {sentence_case_cells:,}", FG_CYAN))
-            print(c("═════════════════════════════════════════════════════", FG_MAGENTA))
+            print(c("-----------------------------------------------------", FG_MAGENTA))
             print()
     finally:
         # Stop local AI server on exit (any path)

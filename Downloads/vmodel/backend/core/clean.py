@@ -433,24 +433,36 @@ def clean_cell(text: str, opts: CleanOptions, column: str | None = None) -> Cell
                     folded = LATIN_ACCENTS.get(ch) or LIGATURES.get(ch)
             elif ch in TYPOGRAPHIC:
                 # invisible chars normalize only when normalize_invisible is on
-                if (opts.fold_symbols or do_translit) and not (
-                        ch in INVISIBLE and not opts.normalize_invisible):
+                # Greek letters listed in TYPOGRAPHIC are lookalike
+                # transliterations (α→a, λ→l): fold them ONLY when
+                # transliteration is explicitly requested, never via
+                # fold_symbols/fold_accents.
+                _greek_letter = 0x0370 <= o <= 0x03FF or 0x1F00 <= o <= 0x1FFF
+                if ((opts.fold_symbols or do_translit)
+                        and not (ch in INVISIBLE and not opts.normalize_invisible)
+                        and (not _greek_letter or opts.fold_scripts or do_translit)):
                     folded = TYPOGRAPHIC[ch]
             elif ch in FULLWIDTH:
                 # fullwidth letters stay (detector classifies them nonascii/preserve);
                 # fullwidth digits/punctuation fold to ASCII
                 if (opts.fold_symbols or do_translit) and not unicodedata.category(ch).startswith("L"):
                     folded = FULLWIDTH[ch]
-            elif ch in SCRIPT_TO_LATIN and (
-                opts.fold_scripts or do_translit
-                # Greek (incl. tonos ό/ί/ά) — TYPOGRAPHIC only has plain letters,
-                # so without this, fold_symbols yields mixed Mnimόnio garbage
-                or (0x0370 <= o <= 0x1FFF and (opts.fold_symbols or opts.fold_accents))
-            ):
+            elif ch in SCRIPT_TO_LATIN and (opts.fold_scripts or do_translit):
                 # non-Latin script -> English letters (β→b, л→l, Ա->A, ل->l);
                 # strict mode (do_translit) implies this before the final
-                # non-ASCII strip, so scripts transliterate instead of vanish
+                # non-ASCII strip, so scripts transliterate instead of vanish.
+                # Accent/symbol folding alone must NEVER romanize a script:
+                # fold_scripts=False keeps Greek/Cyrillic/Armenian/Arabic intact.
                 folded = SCRIPT_TO_LATIN[ch]
+            elif (
+                (0x0370 <= o <= 0x03FF or 0x1F00 <= o <= 0x1FFF)
+                and (opts.fold_accents or opts.fold_symbols)
+            ):
+                # Greek keeps its alphabet under fold_accents: only the
+                # diacritics are stripped (ά→α, ώ→ω), never romanized.
+                base = strip_combining(ch)
+                if base and base != ch:
+                    folded = base
             elif (0xC0 <= o <= 0x24F or 0x1E00 <= o <= 0x1EFF) and (
                     opts.fold_accents or do_translit) and unicodedata.category(ch).startswith("L"):
                 # uncovered Latin letter — same strip_combining fallback the detector suggests
